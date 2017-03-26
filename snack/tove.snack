@@ -1,0 +1,7 @@
+int tove;
+float x;
+read tove;
+x := " this is a string \n";
+tove := 2*tove +- 4.2;
+write tove;
+#lkads
