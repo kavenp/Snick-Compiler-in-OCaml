@@ -1,6 +1,8 @@
 /* ocamlyacc parser for bean */
 %{
 open Snack_ast
+
+let parse_error msg = Printf.eprintf "%s\n" msg
 %}
 
 %token <bool> BOOL_CONST

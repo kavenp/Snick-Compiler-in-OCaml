@@ -1,11 +1,11 @@
-(* Specification of an AST for bean *)
+(* Specification of an AST for Snack *)
 type ident = string
  
 (* Keep aliases intact for pretty printing. *)
-type beantype =
+type snacktype =
   | Bool | Int | Float
 
-type typedef = (ident * beantype)
+type typedef = (ident * snacktype)
 
 type lvalue =
   | LId of ident
@@ -30,7 +30,7 @@ type expr =
 type rvalue =
   | Rexpr of expr
 
-type decl = (ident * beantype)
+type decl = (ident * snacktype)
 
 type stmt = 
   | Assign of (lvalue * rvalue)

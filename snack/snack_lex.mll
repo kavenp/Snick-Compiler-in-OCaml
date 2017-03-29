@@ -1,5 +1,11 @@
 {
 open Snack_parse
+
+let update_position lex_buf =
+let pos = lex_buf.Lexing.lex_curr_p in
+lex_buf.Lexing.lex_curr_p <- { pos with
+Lexing.pos_lnum = pos.Lexing.pos_lnum + 1;
+Lexing.pos_bol = pos.Lexing.pos_cnum };;
 }
 
 let digit = ['0' - '9']
@@ -10,7 +16,7 @@ let ident = (alpha | '_') alnum*
 let str = '"' [^ '\n' '\t' '"']* '"'
 rule token = parse
     [' ' '\t']    { token lexbuf }     (* skip blanks *)
-  | '\n'          { Lexing.new_line lexbuf ; token lexbuf }
+  | '\n'          { update_position lexbuf ; Lexing.new_line lexbuf ; token lexbuf } (* updates line number *)
   | '-'? ('0' | ['1'-'9']+['0'-'9']*) '.' digits as lxm { FLOAT_CONST(float_of_string lxm) }
   | '-'? ['1'-'9']+ ['0'-'9']* as lxm { INT_CONST(int_of_string lxm) }
   | str as lxm { STR_CONST(lxm) }
