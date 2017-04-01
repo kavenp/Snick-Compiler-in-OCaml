@@ -84,7 +84,13 @@ expr:
   | expr PLUS expr { Ebinop ($1, Op_add, $3) }
   | expr MINUS expr { Ebinop ($1, Op_sub, $3) }
   | expr MUL expr { Ebinop ($1, Op_mul, $3) }
+  | expr DIV expr { Ebinop ($1, Op_div, $3) }
   | expr EQ expr { Ebinop ($1, Op_eq, $3) }
   | expr LT expr { Ebinop ($1, Op_lt, $3) }
+  | expr GT expr { Ebinop ($1, Op_gt, $3) }
+  | expr LTEQ expr { Ebinop ($1, Op_lteq, $3) }
+  | expr GTEQ expr { Ebinop ($1, Op_gteq, $3) }
+  | expr NOTEQ expr { Ebinop ($1, Op_noteq, $3) }
   | MINUS expr %prec UMINUS { Eunop (Op_minus, $2) }
   | LPAREN expr RPAREN { $2 }
+  | LSQBRACKET expr RSQBRACKET { $2 }
