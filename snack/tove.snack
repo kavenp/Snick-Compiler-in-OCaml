@@ -5,7 +5,7 @@ read tove;
 x[8,2] := " this is a string \n";
 tove := 2*x[1,2] +- 4.2;
 If y > 0 Then
-    y := tove + 4.2;
+    x := y;
     Else
     y := tove;
 Fi
