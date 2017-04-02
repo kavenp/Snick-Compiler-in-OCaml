@@ -4,6 +4,9 @@ float x[1..8,2..4];
 read tove;
 x[8,2] := " this is a string \n";
 tove := 2*x[1,2] +- 4.2;
+If x > 0 Then
+    x := tove;
+Fi
 write tove;
 #lkads
 end
