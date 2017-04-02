@@ -49,7 +49,7 @@ procs:
 proc:
   /* Empty process header */
   | PROC IDENT LPAREN RPAREN proc_body END { ($2, [], $5) }
-  | PROC IDENT LPAREN proc_args RPAREN proc_body END { ($2, List.rev $4,$6) }
+  | PROC IDENT LPAREN proc_args RPAREN proc_body END { ($2, List.rev $4, $6) }
 
 proc_args:
   | proc_args COMMA arg { $3 :: $1 }
@@ -83,7 +83,10 @@ stmts:
   | { [] }
 
 stmt :
-  stmt_body SEMICOLON { $1 }
+  | stmt_body SEMICOLON { $1 }
+  | IF expr THEN stmts FI { Ifthen ($2, $4) }
+  | IF expr THEN stmts ELSE stmts FI { IfthenElse ($2, $4, $6) }
+  | WHILE expr DO stmts OD { WhileDo ($2, $4) }
 
 stmt_body:
   | READ lvalue { Read $2 }
@@ -126,9 +129,9 @@ interval:
   | expr DOT DOT expr { Ebinop ($1, Op_interval, $4) }
 
 /* list of expressions */
-exprs:
-  | exprs expr { $2 :: $1 }
-  | expr { [$1] }
+interval_exprs:
+  | interval_exprs COMMA expr { $3 :: $1 }
+  | { [] }
 
 expr:
   | literal { $1 }
@@ -138,4 +141,5 @@ expr:
   | binop { $1 }
   | unop { $1 }
   | LPAREN expr RPAREN { $2 }
-  | IDENT LSQBRACKET exprs RSQBRACKET { ArrayOp ($1,$3) }
+  | IDENT LSQBRACKET interval_exprs RSQBRACKET { ArrayOp ($1,$3) }
+  

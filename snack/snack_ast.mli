@@ -44,6 +44,9 @@ type stmt =
   | Assign of (lvalue * rvalue)
   | Read of lvalue
   | Write of expr
+  | Ifthen of (expr * stmt list)
+  | IfthenElse of (expr * stmt list * stmt list)
+  | WhileDo of (expr * stmt list)
 
 type arg = (arg_pass_type * snacktype * ident)
 

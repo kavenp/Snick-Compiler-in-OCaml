@@ -1,9 +1,9 @@
 proc foo (val int m, ref float n) 
 int tove;
-float x;
+float x[1..8,2..4];
 read tove;
-x := " this is a string \n";
-tove := 2*tove +- 4.2;
+x[8,2] := " this is a string \n";
+tove := 2*x[1,2] +- 4.2;
 write tove;
 #lkads
 end
