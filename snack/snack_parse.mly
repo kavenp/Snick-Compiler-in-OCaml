@@ -29,7 +29,7 @@ let parse_error msg = Printf.eprintf "%s\n" msg
 
 %left OR
 %left AND
-%left NOT
+%nonassoc UNOT
 %nonassoc EQ LT GT LTEQ GTEQ NOTEQ
 %left PLUS MINUS 
 %left MUL DIV
@@ -39,9 +39,31 @@ let parse_error msg = Printf.eprintf "%s\n" msg
 
 %start program
 %%
-
 program:
-  decls stmts { { decls = List.rev $1 ; stmts = List.rev $2 } }
+  procs { { procs = List.rev $1 } }
+
+procs:
+  | procs proc { $2 :: $1 }
+  | { [] }
+
+proc:
+  /* Empty process header */
+  | PROC IDENT LPAREN RPAREN proc_body END { ($2, [], $5) }
+  | PROC IDENT LPAREN proc_args RPAREN proc_body END { ($2, List.rev $4,$6) }
+
+proc_args:
+  | proc_args COMMA arg { $3 :: $1 }
+  | { [] }
+
+arg:
+  | arg_pass_type typespec IDENT { ($1, $2, $3) }
+
+arg_pass_type:
+  | VAL { Val }
+  | REF { Ref }
+
+proc_body:
+  decls stmts { (List.rev $1, List.rev $2) }
 
 decl :
   | typespec IDENT SEMICOLON { ($2, $1) }
@@ -74,23 +96,46 @@ rvalue :
 lvalue:
   | IDENT { LId $1 }
 
-expr:
+literal:
   | BOOL_CONST { Ebool $1 }
   | INT_CONST { Eint $1 }
   | FLOAT_CONST { Efloat $1 }
   | STR_CONST { Estring $1 }
-  | lvalue { Elval $1 }
-  /* Binary operators */
+
+binop:
   | expr PLUS expr { Ebinop ($1, Op_add, $3) }
   | expr MINUS expr { Ebinop ($1, Op_sub, $3) }
   | expr MUL expr { Ebinop ($1, Op_mul, $3) }
   | expr DIV expr { Ebinop ($1, Op_div, $3) }
+  /* Comparison */
   | expr EQ expr { Ebinop ($1, Op_eq, $3) }
   | expr LT expr { Ebinop ($1, Op_lt, $3) }
   | expr GT expr { Ebinop ($1, Op_gt, $3) }
   | expr LTEQ expr { Ebinop ($1, Op_lteq, $3) }
   | expr GTEQ expr { Ebinop ($1, Op_gteq, $3) }
   | expr NOTEQ expr { Ebinop ($1, Op_noteq, $3) }
+  /* boolean op */
+  | expr AND expr { Ebinop ($1, Op_and, $3) }
+  | expr OR expr { Ebinop ($1, Op_or, $3) }
+
+unop:
   | MINUS expr %prec UMINUS { Eunop (Op_minus, $2) }
+  | NOT expr %prec UNOT { Eunop (Op_not, $2) }
+
+interval:
+  | expr DOT DOT expr { Ebinop ($1, Op_interval, $4) }
+
+/* list of expressions */
+exprs:
+  | exprs expr { $2 :: $1 }
+  | expr { [$1] }
+
+expr:
+  | literal { $1 }
+  | lvalue { Elval $1 }
+  | interval { $1 }
+  /* Binary operators */
+  | binop { $1 }
+  | unop { $1 }
   | LPAREN expr RPAREN { $2 }
-  | LSQBRACKET expr RSQBRACKET { $2 }
+  | IDENT LSQBRACKET exprs RSQBRACKET { ArrayOp ($1,$3) }

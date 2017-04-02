@@ -5,6 +5,9 @@ type ident = string
 type snacktype =
   | Bool | Int | Float
 
+type arg_pass_type = 
+  | Val | Ref
+
 type typedef = (ident * snacktype)
 
 type lvalue =
@@ -13,10 +16,11 @@ type lvalue =
 
 type binop =
   | Op_add | Op_sub | Op_mul | Op_div | Op_eq | Op_lt | Op_gt | Op_noteq 
-  | Op_gteq| Op_lteq 
+  | Op_gteq | Op_lteq | Op_and | Op_or | Op_interval
 
 type unop =
   | Op_minus
+  | Op_not
 
 type expr =
   | Ebool of bool
@@ -26,6 +30,7 @@ type expr =
   | Elval of lvalue
   | Ebinop of (expr * binop * expr)
   | Eunop of (unop * expr)
+  | ArrayOp of (ident * expr list)
 
 (* Will need to AST elements with additional data.  *)
 type rvalue =
@@ -38,9 +43,14 @@ type stmt =
   | Read of lvalue
   | Write of expr
 
+type arg = (arg_pass_type * snacktype * ident)
+
+type proc_body = (decl list * stmt list)
+
+type proc = (ident * arg list * proc_body)
+
 type program = {
-  decls : typedef list ;
-  stmts : stmt list
+  procs : proc list
 }
  
 type t = program
