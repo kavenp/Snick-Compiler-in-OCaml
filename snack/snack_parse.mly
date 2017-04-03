@@ -44,7 +44,7 @@ program:
 
 procs:
   | procs proc { $2 :: $1 }
-  | { [] }
+  | proc       { [$1] }
 
 proc:
   /* Empty process header */
@@ -53,7 +53,7 @@ proc:
 
 proc_args:
   | proc_args COMMA arg { $3 :: $1 }
-  | { [] }
+  | arg                 { [$1] }
 
 arg:
   | arg_pass_type typespec IDENT { ($1, $2, $3) }
@@ -65,8 +65,10 @@ arg_pass_type:
 proc_body:
   decls stmts { (List.rev $1, List.rev $2) }
 
+/* 2 types of declarations, one regular, one for arrays */
 decl :
-  | typespec IDENT SEMICOLON { ($2, $1) }
+  | typespec IDENT SEMICOLON { RegDecl ($2, $1) }
+  | typespec IDENT LSQBRACKET intervals RSQBRACKET SEMICOLON { ArrayDecl ($2, $1, List.rev $4) }
 
 decls :
   | decls decl { $2 :: $1 }
@@ -89,15 +91,23 @@ stmt :
   | WHILE expr DO stmts OD { WhileDo ($2, $4) }
 
 stmt_body:
+  | proc_call { ProcCall $1 }
   | READ lvalue { Read $2 }
   | WRITE expr { Write $2 }
   | lvalue ASSIGN rvalue { Assign ($1, $3) }
 
+/* Process call with either no args or list of args */
+proc_call:
+  | IDENT LPAREN RPAREN       { ($1, []) }
+  | IDENT LPAREN exprs RPAREN { ($1, List.rev $3) }
+
 rvalue :
   | expr { Rexpr $1 }
 
+/* Two types of variables, regular and array variable */
 lvalue:
   | IDENT { LId $1 }
+  | IDENT LSQBRACKET exprs RSQBRACKET { LArray ($1, List.rev $3) }
 
 literal:
   | BOOL_CONST { Ebool $1 }
@@ -117,7 +127,7 @@ binop:
   | expr LTEQ expr { Ebinop ($1, Op_lteq, $3) }
   | expr GTEQ expr { Ebinop ($1, Op_gteq, $3) }
   | expr NOTEQ expr { Ebinop ($1, Op_noteq, $3) }
-  /* boolean op */
+  /* boolean ops */
   | expr AND expr { Ebinop ($1, Op_and, $3) }
   | expr OR expr { Ebinop ($1, Op_or, $3) }
 
@@ -125,21 +135,29 @@ unop:
   | MINUS expr %prec UMINUS { Eunop (Op_minus, $2) }
   | NOT expr %prec UNOT { Eunop (Op_not, $2) }
 
+/* Interval e.g. [1..8], must be int constants or meaningless
+   this is only used when declaring arrays */
 interval:
-  | expr DOT DOT expr { Ebinop ($1, Op_interval, $4) }
+  | INT_CONST DOT DOT INT_CONST { Interval ($1, $4) }
 
-/* list of expressions */
-interval_exprs:
-  | interval_exprs COMMA expr { $3 :: $1 }
-  | { [] }
+/* List of comma separated intervals, non-empty 
+   Used for declaring multidimensional arrays
+   i.e. int x[1..2,2..3,5..8] is a 3 dimensional array
+*/
+intervals:
+  | intervals COMMA interval { $3 :: $1 }
+  | interval { [$1] }
+
+/* list of expressions, non-empty */
+exprs:
+  | exprs COMMA expr { $3 :: $1 }
+  | expr             { [$1] }
 
 expr:
   | literal { $1 }
   | lvalue { Elval $1 }
-  | interval { $1 }
   /* Binary operators */
   | binop { $1 }
   | unop { $1 }
   | LPAREN expr RPAREN { $2 }
-  | IDENT LSQBRACKET interval_exprs RSQBRACKET { ArrayOp ($1,$3) }
   

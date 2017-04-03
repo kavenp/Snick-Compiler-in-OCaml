@@ -12,18 +12,15 @@ type arg_pass_type =
 
 type typedef = (ident * snacktype)
 
-type lvalue =
-  | LId of ident
-  | LField of (lvalue * ident)
-
 type binop =
   |Op_add | Op_sub | Op_mul | Op_div | Op_eq | Op_lt | Op_gt 
-  | Op_noteq | Op_gteq | Op_lteq | Op_and | Op_or | Op_interval
+  | Op_noteq | Op_gteq | Op_lteq | Op_and | Op_or
 
 type unop =
   | Op_minus
   | Op_not
 
+(* Mutually recursive types expr and lvalue *)
 type expr =
   | Ebool of bool
   | Eint of int
@@ -32,13 +29,21 @@ type expr =
   | Elval of lvalue
   | Ebinop of (expr * binop * expr)
   | Eunop of (unop * expr)
-  | ArrayOp of (ident * expr list)
+and lvalue =
+  | LId of ident
+  | LArray of (ident * expr list)
 
 (* Will need to AST elements with additional data.  *)
 type rvalue =
   | Rexpr of expr
 
-type decl = (ident * snacktype)
+(* First int is lower bound, Second int is upper bound *)
+type interval = 
+  | Interval of (int * int)
+
+type decl = 
+  | RegDecl of (ident * snacktype)
+  | ArrayDecl of (ident * snacktype * interval list)
 
 type stmt = 
   | Assign of (lvalue * rvalue)
@@ -47,6 +52,7 @@ type stmt =
   | Ifthen of (expr * stmt list)
   | IfthenElse of (expr * stmt list * stmt list)
   | WhileDo of (expr * stmt list)
+  | ProcCall of (ident * expr list)
 
 type arg = (arg_pass_type * snacktype * ident)
 
