@@ -21,9 +21,10 @@ let main () =
       (begin fun fname -> infile_name := Some fname end)
       "snack [-p] [snack source]" ;
   (* Open the input file *)
-  let infile = match !infile_name with
-  | None -> stdin
-  | Some fname -> open_in fname in
+  let infile = 
+    match !infile_name with
+    | None -> stdin
+    | Some fname -> open_in fname in
   (* Initialize lexing buffer *)
   let lexbuf = Lexing.from_channel infile in
   (* Call the parser *)
