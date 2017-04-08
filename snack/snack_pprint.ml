@@ -116,5 +116,13 @@ bracket_unop expr subexpr =
   else 
     string_of_expr subexpr
 
+let string_of_rval rval =
+  match rval with
+  | Rexpr expr -> string_of_expr expr
 
+let string_of_interval inter =
+  let str = string_of_int
+  in
+  match inter with
+  | Interval (low, high) -> String.concat ".." [str low;str high]
 
