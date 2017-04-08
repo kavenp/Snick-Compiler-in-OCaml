@@ -1,7 +1,6 @@
 open Snack_ast
 open Format
 
-let ppf = Format.std_formatter
 (* Print Binary operators *)
 let pr_binop ppf binop =
   match binop with
@@ -44,7 +43,7 @@ let op_prec expr =
   | _                       -> 8 
   (* Other exprs are all higher precedence *)
 
-(* Convert expression to string *)
+(* Print expressions *)
 let rec pr_expr ppf expr =
   match expr with
   | Ebool ebool -> fprintf ppf "%s" (string_of_bool ebool)
@@ -61,7 +60,6 @@ pr_lval ppf lval =
   | LId ident -> fprintf ppf "%s" ident
   | LArray (ident, exprs) 
     -> fprintf ppf "%s[%a]" (ident) pr_comma_sep_exprs exprs
-  (* Concat ident to front of a square bracketed list of comma separated expressions converted to string *)
 and
 (* Convert binary operations to string by
  * taking into account the precedence of left and right expressions
@@ -155,48 +153,44 @@ let pr_decl ppf decl =
 
 let rec pr_decls ppf decls =
   match decls with
-  | [] -> fprintf ppf "%(fmt%)" "@]"  
-  | [decl] -> fprintf ppf "@[<v>%a@;" pr_decl decl
-  | decl :: ds -> fprintf ppf "%a@;" pr_decl decl ; pr_decls ppf ds
+  | [] -> () 
+  | [decl] -> fprintf ppf "%a@;" pr_decl decl
+  | decl :: ds -> fprintf ppf "@[<v>%a@;@]" pr_decl decl ; pr_decls ppf ds
 
 let rec pr_stmt ppf stmt =
   match stmt with
   | Assign (lval, rval) 
     -> fprintf ppf "%a := %a;" pr_lval lval pr_rval rval
   | Read lval -> fprintf ppf "read %a;" pr_lval lval
-  (*pr ("read " ^ string_of_lval pr lval ^ ";")*)
   | Write expr -> fprintf ppf "write %a;" pr_expr expr
-  (*pr ("write " ^ string_of_expr pr expr ^ ";")*)
   | Ifthen (expr, stmts) -> pr_ifThen ppf expr stmts
   | IfthenElse (expr, thenStmts, elseStmts) 
     -> pr_ifThenElse ppf expr thenStmts elseStmts
   | WhileDo (expr, stmts) -> pr_whileDo ppf expr stmts
   | ProcCall (id, exprs) 
-    -> fprintf ppf "%s(%a)" id pr_comma_sep_exprs exprs
-    (*(id ^ add_brackets (String.concat ", " 
-      (List.map (string_of_expr pr) exprs)) ^ ";")*)
+    -> fprintf ppf "%s(%a);" id pr_comma_sep_exprs exprs
 and
 pr_stmts ppf stmts = 
   match stmts with
-  | [] -> fprintf ppf "%(fmt%)" "@]"
-  | [stmt] -> fprintf ppf "@[<v>%a@;" pr_stmt stmt
-  | stmt :: ss -> fprintf ppf "%a@;" pr_stmt stmt; pr_stmts ppf ss
+  | [] -> ()
+  | [stmt] -> fprintf ppf "%a"  pr_stmt stmt
+  | stmt :: ss -> fprintf ppf "@[<v>%a@;@]" pr_stmt stmt; pr_stmts ppf ss
 and
 pr_ifThen ppf expr stmts =
   fprintf ppf
-  "@[<v>if %a then@;<0 4>%afi@]" 
+  "@[<v>if %a then@;<0 4>%a@;fi@]" 
   pr_expr expr pr_stmts (List.rev stmts)
 and
 pr_ifThenElse ppf expr thenStmts elseStmts =
   fprintf ppf
-  "@[<v>if %a then@;<0 4>%aelse@;<0 4>%afi@]"
+  "@[<v>if %a then@;<0 4>%a@;else@;<0 4>%a@;fi@]"
   pr_expr expr
   pr_stmts (List.rev thenStmts)
   pr_stmts (List.rev elseStmts)
 and
 pr_whileDo ppf expr stmts =
   fprintf ppf
-  "@[<v>while %a do@;<0 4>%aod@]"
+  "@[<v>while %a do@;<0 4>%a@;od@]"
   pr_expr expr
   pr_stmts (List.rev stmts)
   (* Reversing statement list within composite statements 
@@ -227,27 +221,16 @@ let pr_proc_body ppf (decls, stmts) =
 
 let pr_proc ppf (id, args, proc_body) =
   fprintf ppf
-  "@[<v>proc %s %a@;<0 4>%a@;end@]"
+  "@[<v>proc %s %a@;<0 4>%a@;end@]@."
   id pr_args args pr_proc_body proc_body
 
 let rec pr_proc_list ppf procs =
   match procs with
-  | [] -> fprintf ppf "%(fmt%)" "@]@."
-  | [proc] -> fprintf ppf "@[<v>%a@;@;" pr_proc proc
-  | proc :: ps -> fprintf ppf "%a@;@;" pr_proc proc ; pr_proc_list ppf ps
+  | [] -> ()
+  | [proc] -> fprintf ppf "%a@;@;" pr_proc proc
+  | proc :: ps -> fprintf ppf  "@[<v>%a@]@." pr_proc proc ; pr_proc_list ppf ps
 
 let rec print_program ppf prog =
   let procs = prog.procs
   in
   pr_proc_list ppf procs;
-  (*pr (String.concat 
-  (String.concat "@;@;" (List.map (string_of_proc pr) procs))
-  ["@[<v>";"@]@."])*)
-
-(*let print_program fmt prog = 
-  let pr = fprintf fmt
-  in
-  pr_program pr prog
-  (*fprintf fmt "@[<v>--@;<0 2>@[<v>(---%(fmt%)@;--)@]@;@;--@]@."
-  (format_of_string ";@;")*)
-  (*fprintf fmt "@[<v>proc x (val int y, ref float z)@;<0 4>@[<v>@[<v>int y;@;float z;@]@;@;@[<v>y := z;@]@]@;end@]@."*)*)
