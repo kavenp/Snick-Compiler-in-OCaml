@@ -10,8 +10,6 @@ type snacktype =
 type arg_pass_type = 
   | Val | Ref
 
-type typedef = (ident * snacktype)
-
 type binop =
   |Op_add | Op_sub | Op_mul | Op_div | Op_eq | Op_lt | Op_gt 
   | Op_noteq | Op_gteq | Op_lteq | Op_and | Op_or
