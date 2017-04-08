@@ -125,7 +125,7 @@ and
 pr_comma_sep_exprs ppf exprs =
   match exprs with
   | [expr] -> fprintf ppf "%a" pr_expr expr
-  | expr :: es -> fprintf ppf ", %a" pr_expr expr ; pr_comma_sep_exprs ppf es
+  | expr :: es -> fprintf ppf "%a, " pr_expr expr ; pr_comma_sep_exprs ppf es
   | [] -> ()
 
 let pr_rval ppf rval =
@@ -140,7 +140,7 @@ let pr_interval ppf inter =
 let rec pr_comma_sep_inters ppf inters =
   match inters with
   | [inter] -> fprintf ppf "%a" pr_interval inter
-  | inter :: is -> fprintf ppf ", %a" pr_interval inter ; pr_comma_sep_inters ppf is
+  | inter :: is -> fprintf ppf "%a, " pr_interval inter ; pr_comma_sep_inters ppf is
   | [] -> ()
 
 let pr_snacktype ppf stype =
@@ -164,20 +164,14 @@ let pr_decl ppf decl =
 let rec pr_decls ppf decls =
   match decls with
   | [decl] -> fprintf ppf "@[<v>%a@;" pr_decl decl
-  | decl :: ds -> fprintf ppf "%a" pr_decl decl ; pr_decls ppf ds
+  | decl :: ds -> fprintf ppf "%a@;" pr_decl decl ; pr_decls ppf ds
   | [] -> fprintf ppf "@]"
-  (*(String.concat
-  (String.concat "@;" (List.map (string_of_decl pr) decls))
-  ["@[<v>";"@]"])*)
 
 let rec pr_stmts ppf stmts =
   let pr_stmt ppf stmt =
     match stmt with
     | Assign (lval, rval) 
       -> fprintf ppf "%a := %a;" pr_lval lval pr_rval rval
-      (*"(String.concat " " 
-        [string_of_lval pr lval;":=";string_of_rval pr rval] ^
-        ";")"*)
     | Read lval -> fprintf ppf "read %a;" pr_lval lval
     (*pr ("read " ^ string_of_lval pr lval ^ ";")*)
     | Write expr -> fprintf ppf "write %a;" pr_expr expr
@@ -187,57 +181,53 @@ let rec pr_stmts ppf stmts =
       -> pr_ifThenElse ppf expr thenStmts elseStmts
     | WhileDo (expr, stmts) -> pr_whileDo ppf expr stmts
     | ProcCall (id, exprs) 
-      -> fprintf ppf "%s (%a)" id pr_comma_sep_exprs exprs
+      -> fprintf ppf "%s(%a)" id pr_comma_sep_exprs exprs
       (*(id ^ add_brackets (String.concat ", " 
         (List.map (string_of_expr pr) exprs)) ^ ";")*)
   in
   match stmts with
   | [stmt] -> fprintf ppf "@[<v>%a@;" pr_stmt stmt
-  | stmt :: ss -> fprintf ppf "%a@;" pr_stmt stmt
+  | stmt :: ss -> fprintf ppf "%a@;" pr_stmt stmt; pr_stmts ppf ss
   | [] -> fprintf ppf "@]"
-  (*(String.concat 
-  (String.concat "@;" (List.map (string_of_stmt pr) stmts))
-  ["@[<v>";"@]"]) *)
 and
 pr_ifThen ppf expr stmts =
   fprintf ppf
-  "@[<v>if %a then@;<0 4>%a@;fi@]" 
+  "@[<v>if %a then@;<0 4>%afi@]" 
   pr_expr expr pr_stmts stmts
 and
 pr_ifThenElse ppf expr thenStmts elseStmts =
   fprintf ppf
-  "@[<v>if %a then@;<0 4>%a@;else@;<0 4>%a@;fi@]"
+  "@[<v>if %a then@;<0 4>%aelse@;<0 4>%afi@]"
   pr_expr expr
   pr_stmts thenStmts 
   pr_stmts elseStmts
 and
 pr_whileDo ppf expr stmts =
   fprintf ppf
-  "@[<v>while %a do@;<0 4>%a@;od@]"
+  "@[<v>while %a do@;<0 4>%aod@]"
   pr_expr expr
   pr_stmts stmts
 
 let pr_arg ppf (ptype, stype, id) =
-  fprintf ppf "%a %a %s" pr_passtype ptype pr_snacktype stype id  
-  (*(String.concat " " 
-  [string_of_passtype pr ptype;
-  string_of_snacktype pr stype;
-  id])*)
+  fprintf ppf "%a %a %s" pr_passtype ptype pr_snacktype stype id
 
 let rec pr_comma_sep_args ppf args =
   match args with
-  | arg :: ars -> fprintf ppf ", %a" pr_arg arg ; pr_comma_sep_args ppf ars
   | [arg] -> fprintf ppf "%a" pr_arg arg
-  | [] -> fprintf ppf "()"
+  | arg :: ars -> fprintf ppf "%a, " pr_arg arg ; pr_comma_sep_args ppf ars
+  | [] -> ()
 
 let pr_args ppf args =
-  fprintf ppf "(%a)" pr_comma_sep_args args
-  (*pr (add_brackets (String.concat ", "
-               (List.map (string_of_arg pr) args)))*)
+  if args = [] then
+    fprintf ppf "()"
+    (* Empty arguments case handled here
+     * Can't be handled inside recursion *)
+  else
+    fprintf ppf "(%a)" pr_comma_sep_args args
 
 let pr_proc_body ppf (decls, stmts) =
   fprintf ppf
-  ("@[<v>%a@;@;%a@]")
+  ("@[<v>%a@;%a@]")
   pr_decls decls
   pr_stmts stmts
 
@@ -246,13 +236,16 @@ let pr_proc ppf (id, args, proc_body) =
   "@[<v>proc %s %a@;<0 4>%a@;end@]"
   id pr_args args pr_proc_body proc_body
 
-let print_program ppf prog =
+let rec pr_proc_list ppf procs =
+  match procs with
+  | [] -> fprintf ppf "@]@."
+  | [proc] -> fprintf ppf "@[<v>%a@;@;" pr_proc proc
+  | proc :: ps -> fprintf ppf "%a@;@;" pr_proc proc ; pr_proc_list ppf ps
+
+let rec print_program ppf prog =
   let procs = prog.procs
   in
-  match procs with
-  | [proc] -> fprintf ppf "@[<v>%a@;@;" pr_proc proc
-  | proc :: ps -> fprintf ppf "%a@;@;" pr_proc proc
-  | [] -> fprintf ppf "@]@."
+  pr_proc_list ppf procs;
   (*pr (String.concat 
   (String.concat "@;@;" (List.map (string_of_proc pr) procs))
   ["@[<v>";"@]@."])*)
