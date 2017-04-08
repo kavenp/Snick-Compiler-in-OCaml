@@ -24,14 +24,6 @@ let pr_unop ppf unop =
   | Op_minus -> fprintf ppf "-"
   | Op_not -> fprintf ppf "not"
 
-(* Add brackets around a string *)
-let add_brackets str =
-  String.concat str ["(";")"]
-
-(* Add square brackets around string *used for arrays*)
-let add_sqBrackets str =
-  String.concat str ["[";"]"]
-
 (* Set precedences of operators to help with printing brackets *)
 let op_prec expr =
   match expr with
@@ -139,9 +131,9 @@ let pr_interval ppf inter =
   
 let rec pr_comma_sep_inters ppf inters =
   match inters with
+  | [] -> ()
   | [inter] -> fprintf ppf "%a" pr_interval inter
   | inter :: is -> fprintf ppf "%a, " pr_interval inter ; pr_comma_sep_inters ppf is
-  | [] -> ()
 
 let pr_snacktype ppf stype =
   match stype with
@@ -163,59 +155,61 @@ let pr_decl ppf decl =
 
 let rec pr_decls ppf decls =
   match decls with
+  | [] -> fprintf ppf "%(fmt%)" "@]"  
   | [decl] -> fprintf ppf "@[<v>%a@;" pr_decl decl
   | decl :: ds -> fprintf ppf "%a@;" pr_decl decl ; pr_decls ppf ds
-  | [] -> fprintf ppf "@]"
 
-let rec pr_stmts ppf stmts =
-  let pr_stmt ppf stmt =
-    match stmt with
-    | Assign (lval, rval) 
-      -> fprintf ppf "%a := %a;" pr_lval lval pr_rval rval
-    | Read lval -> fprintf ppf "read %a;" pr_lval lval
-    (*pr ("read " ^ string_of_lval pr lval ^ ";")*)
-    | Write expr -> fprintf ppf "write %a;" pr_expr expr
-    (*pr ("write " ^ string_of_expr pr expr ^ ";")*)
-    | Ifthen (expr, stmts) -> pr_ifThen ppf expr stmts
-    | IfthenElse (expr, thenStmts, elseStmts) 
-      -> pr_ifThenElse ppf expr thenStmts elseStmts
-    | WhileDo (expr, stmts) -> pr_whileDo ppf expr stmts
-    | ProcCall (id, exprs) 
-      -> fprintf ppf "%s(%a)" id pr_comma_sep_exprs exprs
-      (*(id ^ add_brackets (String.concat ", " 
-        (List.map (string_of_expr pr) exprs)) ^ ";")*)
-  in
+let rec pr_stmt ppf stmt =
+  match stmt with
+  | Assign (lval, rval) 
+    -> fprintf ppf "%a := %a;" pr_lval lval pr_rval rval
+  | Read lval -> fprintf ppf "read %a;" pr_lval lval
+  (*pr ("read " ^ string_of_lval pr lval ^ ";")*)
+  | Write expr -> fprintf ppf "write %a;" pr_expr expr
+  (*pr ("write " ^ string_of_expr pr expr ^ ";")*)
+  | Ifthen (expr, stmts) -> pr_ifThen ppf expr stmts
+  | IfthenElse (expr, thenStmts, elseStmts) 
+    -> pr_ifThenElse ppf expr thenStmts elseStmts
+  | WhileDo (expr, stmts) -> pr_whileDo ppf expr stmts
+  | ProcCall (id, exprs) 
+    -> fprintf ppf "%s(%a)" id pr_comma_sep_exprs exprs
+    (*(id ^ add_brackets (String.concat ", " 
+      (List.map (string_of_expr pr) exprs)) ^ ";")*)
+and
+pr_stmts ppf stmts = 
   match stmts with
+  | [] -> fprintf ppf "%(fmt%)" "@]"
   | [stmt] -> fprintf ppf "@[<v>%a@;" pr_stmt stmt
   | stmt :: ss -> fprintf ppf "%a@;" pr_stmt stmt; pr_stmts ppf ss
-  | [] -> fprintf ppf "@]"
 and
 pr_ifThen ppf expr stmts =
   fprintf ppf
   "@[<v>if %a then@;<0 4>%afi@]" 
-  pr_expr expr pr_stmts stmts
+  pr_expr expr pr_stmts (List.rev stmts)
 and
 pr_ifThenElse ppf expr thenStmts elseStmts =
   fprintf ppf
   "@[<v>if %a then@;<0 4>%aelse@;<0 4>%afi@]"
   pr_expr expr
-  pr_stmts thenStmts 
-  pr_stmts elseStmts
+  pr_stmts (List.rev thenStmts)
+  pr_stmts (List.rev elseStmts)
 and
 pr_whileDo ppf expr stmts =
   fprintf ppf
   "@[<v>while %a do@;<0 4>%aod@]"
   pr_expr expr
-  pr_stmts stmts
+  pr_stmts (List.rev stmts)
+  (* Reversing statement list within composite statements 
+   * because of doubly recursive statements flipping the order again*)
 
 let pr_arg ppf (ptype, stype, id) =
   fprintf ppf "%a %a %s" pr_passtype ptype pr_snacktype stype id
 
 let rec pr_comma_sep_args ppf args =
   match args with
+  | [] -> ()
   | [arg] -> fprintf ppf "%a" pr_arg arg
   | arg :: ars -> fprintf ppf "%a, " pr_arg arg ; pr_comma_sep_args ppf ars
-  | [] -> ()
 
 let pr_args ppf args =
   if args = [] then
@@ -238,7 +232,7 @@ let pr_proc ppf (id, args, proc_body) =
 
 let rec pr_proc_list ppf procs =
   match procs with
-  | [] -> fprintf ppf "@]@."
+  | [] -> fprintf ppf "%(fmt%)" "@]@."
   | [proc] -> fprintf ppf "@[<v>%a@;@;" pr_proc proc
   | proc :: ps -> fprintf ppf "%a@;@;" pr_proc proc ; pr_proc_list ppf ps
 
