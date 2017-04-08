@@ -14,7 +14,7 @@ rule token = parse
   | [' ' '\t']    { token lexbuf }     (* skip blanks *)
   | '\n'          { Lexing.new_line lexbuf ; token lexbuf }
   | '-'? ('0' | ['1'-'9']+['0'-'9']*) '.' digits as lxm { FLOAT_CONST(float_of_string lxm) }
-  | '-'? ['1'-'9']+ ['0'-'9']* as lxm { INT_CONST(int_of_string lxm) }
+  | '-'? ('0' | ['1'-'9']+['0'-'9']*) as lxm { INT_CONST(int_of_string lxm) }
   | '#'[^ '\n']* { token lexbuf }   (* skip comments *)
   | str as lxm { STR_CONST lxm }
   (* keywords *)
