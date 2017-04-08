@@ -2,4 +2,5 @@ proc x (val int y, ref float z)
 int y;
 float z;
 y := z;
+z := 2;
 end
