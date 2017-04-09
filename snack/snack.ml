@@ -32,6 +32,6 @@ let main () =
   match !mode with
   | PrettyPrint ->
     Snack_pprint.print_program Format.std_formatter prog 
-  | Compile -> ()
+  | Compile -> Printf.printf "Sorry, cannot generate code yet\n"
 
 let _ = main ()
