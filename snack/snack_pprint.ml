@@ -73,23 +73,27 @@ pr_binop_expr ppf lexpr binop rexpr =
   pr_binop binop 
   bracket_binop_right mainExpr
 and
-bracket_binop_left ppf (Ebinop (lexpr, binop, rexpr)) =
-  let expr = Ebinop (lexpr, binop, rexpr)
-  in
-  if (op_prec lexpr) < (op_prec expr) then
-    fprintf ppf "(%a)" pr_expr lexpr
-  else
-    fprintf ppf "%a" pr_expr lexpr
+bracket_binop_left ppf expr =
+  match expr with
+  | Ebinop (lexpr, binop, rexpr) ->
+    if (op_prec lexpr) < (op_prec expr) then
+      fprintf ppf "(%a)" pr_expr lexpr
+    else
+      fprintf ppf "%a" pr_expr lexpr
+  | _ -> () 
+  (* Only match binop exprs *)
 and
-bracket_binop_right ppf (Ebinop (lexpr, binop, rexpr)) = 
-  let expr = Ebinop (lexpr, binop, rexpr)
-  in
-  (* When right side is less than or equal in precedence to main expr
-   * we need to add brackets *)
-  if (op_prec rexpr) <= (op_prec expr) then
-    fprintf ppf "(%a)" pr_expr rexpr
-  else
-    fprintf ppf "%a" pr_expr rexpr
+bracket_binop_right ppf expr = 
+  match expr with
+  | Ebinop (lexpr, binop, rexpr) ->
+    (* When right side is less than or equal in precedence to main expr
+    * we need to add brackets *)
+    if (op_prec rexpr) <= (op_prec expr) then
+      fprintf ppf "(%a)" pr_expr rexpr
+    else
+      fprintf ppf "%a" pr_expr rexpr
+  | _ -> ()
+  (* Only matches binop exprs *)
 and
 (* Convert unary operations to string
  * using bracket_unop to decide whether to add brackets or not 
@@ -104,13 +108,15 @@ pr_unop_expr ppf unop expr =
                   bracket_unop (Eunop (unop,expr))
 and
 (* Adds brackets to expression following unary op if its precedence is lower than main expression *)
-bracket_unop ppf (Eunop (unop, expr)) =
-  let mainExpr = Eunop (unop, expr)
-  in
-  if (op_prec expr) < (op_prec mainExpr) then
-    fprintf ppf "(%a)" pr_expr expr
-  else 
-    fprintf ppf "%a" pr_expr expr
+bracket_unop ppf expr =
+  match expr with
+  | Eunop (unop, subexpr) ->
+    if (op_prec subexpr) < (op_prec expr) then
+      fprintf ppf "(%a)" pr_expr subexpr
+    else 
+      fprintf ppf "%a" pr_expr subexpr
+  | _ -> ()
+  (* Only matches unop exprs *)
 and
 pr_comma_sep_exprs ppf exprs =
   match exprs with

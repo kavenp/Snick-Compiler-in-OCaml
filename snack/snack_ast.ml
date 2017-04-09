@@ -23,11 +23,13 @@ type expr =
   | Efloat of float
   | Estring of string
   | Elval of lvalue
-  | Ebinop of (expr * binop * expr)
-  | Eunop of (unop * expr)
+  | Ebinop of binopExpr
+  | Eunop of unopExpr
 and lvalue =
   | LId of ident
   | LArray of (ident * expr list)
+and binopExpr = (expr * binop * expr)
+and unopExpr = (unop * expr)
 
 (* Will need to AST elements with additional data.  *)
 type rvalue =
