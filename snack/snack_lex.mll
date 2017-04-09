@@ -9,7 +9,7 @@ let alpha = ['a' - 'z' 'A' - 'Z']
 let alnum = alpha | '_' | '\'' | digit
 let digits = digit+
 let ident = (alpha | '_') alnum*
-let str = '"' [^ '\n' '\t' '"']* '"'
+let str = '"' [^ '\n' ' ' '"']* '"'
 rule token = parse
   | [' ' '\t']    { token lexbuf }     (* skip blanks *)
   | '\n'          { Lexing.new_line lexbuf ; token lexbuf }
