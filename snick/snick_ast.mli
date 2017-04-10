@@ -7,7 +7,7 @@
 type ident = string
  
 (* Keep aliases intact for pretty printing. *)
-type snacktype =
+type snicktype =
   | Bool
   | Int
   | Float
@@ -47,8 +47,8 @@ type interval =
   | Interval of (int * int)
 
 type decl = 
-  | RegDecl of (ident * snacktype)
-  | ArrayDecl of (ident * snacktype * interval list)
+  | RegDecl of (ident * snicktype)
+  | ArrayDecl of (ident * snicktype * interval list)
 
 type stmt = 
   | Assign of (lvalue * rvalue)
@@ -59,7 +59,7 @@ type stmt =
   | WhileDo of (expr * stmt list)
   | ProcCall of (ident * expr list)
 
-type arg = (arg_pass_type * snacktype * ident)
+type arg = (arg_pass_type * snicktype * ident)
 
 type proc_body = (decl list * stmt list)
 
