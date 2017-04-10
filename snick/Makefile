@@ -54,6 +54,6 @@ depend: snick_lex.ml snick_parse.ml
 	$(OCAMLDEP) snick.ml snick.mli $(ALLMODULES:%=%.mli) $(ALLMODULES:%=%.ml) >Makefile.depend
 
 submit: 
-	$(SUBMIT1B) snick.ml snick_ast.ml snick_ast.mli snick_lex.mll snick_parse.mly snick_pprint.ml snick_pprint.mli
+	$(SUBMIT1B) snick.ml snick_ast.ml snick_ast.mli snick_lex.mll snick_parse.mly snick_pprint.ml snick_pprint.mli Makefile Makefile.depend
 
 -include Makefile.depend

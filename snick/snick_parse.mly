@@ -12,7 +12,7 @@ let parse_error msg = Printf.eprintf "%s\n" msg
 
 %token <bool> BOOL_CONST
 %token <int> INT_CONST
-%token <float> FLOAT_CONST
+%token <string> FLOAT_CONST
 %token <string> STR_CONST
 %token <string> IDENT
 %token BOOL INT FLOAT
@@ -25,7 +25,7 @@ let parse_error msg = Printf.eprintf "%s\n" msg
 %token ASSIGN
 %token LPAREN RPAREN
 %token LSQBRACKET RSQBRACKET
-%token DOT COMMA
+%token DOUBLEDOT COMMA
 %token EQ NOTEQ LT GT
 %token LTEQ GTEQ
 %token PLUS MINUS MUL DIV
@@ -143,7 +143,7 @@ unop:
 /* Interval e.g. [1..8], must be int constants or meaningless
    this is only used when declaring arrays */
 interval:
-  | INT_CONST DOT DOT INT_CONST { Interval ($1, $4) }
+  | INT_CONST DOUBLEDOT INT_CONST { Interval ($1, $3) }
 
 /* List of comma separated intervals, non-empty 
    Used for declaring multidimensional arrays

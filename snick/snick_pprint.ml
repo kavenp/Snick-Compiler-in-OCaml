@@ -55,7 +55,7 @@ let rec pr_expr ppf expr =
   match expr with
   | Ebool ebool -> fprintf ppf "%s" (string_of_bool ebool)
   | Eint eint -> fprintf ppf "%s" (string_of_int eint)
-  | Efloat efloat -> fprintf ppf "%s" (string_of_float efloat)
+  | Efloat efloat -> fprintf ppf "%s"  efloat
   | Estring estring -> fprintf ppf "%s" estring
   | Elval elval -> pr_lval ppf elval
   | Ebinop (lexpr, binop, rexpr) -> pr_binop_expr ppf lexpr binop rexpr
@@ -179,7 +179,7 @@ let pr_decl ppf decl =
 (* Prints list of decls by recursively calling pr_decl *)
 let rec pr_decls ppf decls =
   match decls with
-  | [] -> () 
+  | [] -> ()
   (* Line break after last decl *)
   | [decl] -> fprintf ppf "%a@;" pr_decl decl
   (* Opens and closes vbox *)

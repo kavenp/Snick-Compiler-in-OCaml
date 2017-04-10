@@ -31,7 +31,7 @@ rule token = parse
   (* Newline *)
   | '\n'          { Lexing.new_line lexbuf ; token lexbuf }
   (* Literals *)
-  | '-'? ('0' | ['1'-'9']+['0'-'9']*) '.' digits as lxm { FLOAT_CONST(float_of_string lxm) }
+  | '-'? ('0' | ['1'-'9']+['0'-'9']*) '.' digits as lxm { FLOAT_CONST lxm }
   | '-'? ('0' | ['1'-'9']+['0'-'9']*) as lxm { INT_CONST(int_of_string lxm) }
   (* Skip comments *)
   | '#'[^ '\n']* { token lexbuf } 
@@ -64,7 +64,7 @@ rule token = parse
   | ')' { RPAREN }
   | '[' { LSQBRACKET }
   | ']' { RSQBRACKET }
-  | '.' { DOT }
+  | ".." { DOUBLEDOT }
   | ',' { COMMA }
   (* Operators *)
   | "!=" { NOTEQ }

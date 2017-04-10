@@ -26,7 +26,7 @@ type unop =
 type expr =
   | Ebool of bool
   | Eint of int
-  | Efloat of float
+  | Efloat of string
   | Estring of string
   | Elval of lvalue
   | Ebinop of binopExpr
