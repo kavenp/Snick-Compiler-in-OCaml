@@ -1,4 +1,9 @@
-/* ocamlyacc parser for bean */
+/* | Ocamlyacc Parser for Snick language specification | */
+/* | ------------------------------------------------- | */
+/* | Parser used to generate abstract syntax tree by   | */
+/* | analyzing tokens given by the Lexer               | */
+/* | ------------------------------------------------- | */
+
 %{
 open Snick_ast
 

@@ -1,3 +1,10 @@
+(* ----------------------------------------------------- | 
+ * Pretty Printer for Snick language                     |
+ * ----------------------------------------------------- |
+ * Pretty prints a Snick program given the abstract      |
+ * syntax tree built by the Snick parser and lexer       |
+ * ----------------------------------------------------- | *)
+
 open Snick_ast
 open Format
 

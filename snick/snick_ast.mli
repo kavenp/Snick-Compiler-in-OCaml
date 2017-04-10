@@ -1,4 +1,9 @@
-(* Specification of an AST for Snick *)
+(* ----------------------------------------------------- | 
+ * Abstract Syntax Tree for Snick language               |
+ * ----------------------------------------------------- |
+ * Tree representation of Snick program in program       |
+ * built by the Snick parser                             |
+ * ----------------------------------------------------- | *)
 type ident = string
  
 (* Keep aliases intact for pretty printing. *)
