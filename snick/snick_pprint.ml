@@ -33,47 +33,47 @@ let pr_unop ppf unop =
 (* Set precedences of operators to help with printing brackets *)
 let op_prec expr =
   match expr with
-  | Ebinop (_, Op_or, _)    -> 1
-  | Ebinop (_, Op_and, _)   -> 2
-  | Eunop  (Op_not, _)      -> 3
-  | Ebinop (_, Op_eq, _)
-  | Ebinop (_, Op_noteq, _)
-  | Ebinop (_, Op_lt, _)
-  | Ebinop (_, Op_lteq, _)
-  | Ebinop (_, Op_gt, _)
-  | Ebinop (_, Op_gteq, _)  -> 4
-  | Ebinop (_, Op_add, _)
-  | Ebinop (_, Op_sub, _)   -> 5
-  | Ebinop (_, Op_mul, _)
-  | Ebinop (_, Op_div, _)   -> 6
-  | Eunop  ( Op_minus, _)   -> 7
+  | Ebinop (_, Op_or, _, _)    -> 1
+  | Ebinop (_, Op_and, _, _)   -> 2
+  | Eunop  (Op_not, _, _)      -> 3
+  | Ebinop (_, Op_eq, _, _)
+  | Ebinop (_, Op_noteq, _, _)
+  | Ebinop (_, Op_lt, _, _)
+  | Ebinop (_, Op_lteq, _, _)
+  | Ebinop (_, Op_gt, _, _)
+  | Ebinop (_, Op_gteq, _, _)  -> 4
+  | Ebinop (_, Op_add, _, _)
+  | Ebinop (_, Op_sub, _, _)   -> 5
+  | Ebinop (_, Op_mul, _, _)
+  | Ebinop (_, Op_div, _, _)   -> 6
+  | Eunop  ( Op_minus, _, _)   -> 7
   | _                       -> 8 
   (* Other exprs are all higher precedence *)
 
 (* Print expressions *)
 let rec pr_expr ppf expr =
   match expr with
-  | Ebool ebool -> fprintf ppf "%s" (string_of_bool ebool)
-  | Eint eint -> fprintf ppf "%s" (string_of_int eint)
-  | Efloat efloat -> fprintf ppf "%s"  efloat
-  | Estring estring -> fprintf ppf "%s" estring
-  | Elval elval -> pr_lval ppf elval
-  | Ebinop (lexpr, binop, rexpr) -> pr_binop_expr ppf lexpr binop rexpr
-  | Eunop (unop, expr) -> pr_unop_expr ppf unop expr
+  | Ebool (ebool, _) -> fprintf ppf "%s" (string_of_bool ebool)
+  | Eint (eint, _) -> fprintf ppf "%s" (string_of_int eint)
+  | Efloat (efloat, _) -> fprintf ppf "%s"  efloat
+  | Estring (estring, _) -> fprintf ppf "%s" estring
+  | Elval (elval, _) -> pr_lval ppf elval
+  | Ebinop (lexpr, binop, rexpr, pos) -> pr_binop_expr ppf lexpr binop rexpr pos
+  | Eunop (unop, expr, pos) -> pr_unop_expr ppf unop expr pos
 and
 (* Print lval here because lval and expr types are mutually recursive *)
 pr_lval ppf lval =
   match lval with
-  | LId ident -> fprintf ppf "%s" ident
-  | LArray (ident, exprs) 
+  | LId (ident, _) -> fprintf ppf "%s" ident
+  | LArray (ident, exprs, _) 
     -> fprintf ppf "%s[%a]" (ident) pr_comma_sep_exprs exprs
 and
 (* Print binary ops by
  * taking into account the precedence of left and right expressions
  * and adding brackets as needed to maintain the meaning of
  * the main expression stored in AST *)
-pr_binop_expr ppf lexpr binop rexpr =
-  let mainExpr = Ebinop (lexpr, binop, rexpr)
+pr_binop_expr ppf lexpr binop rexpr pos =
+  let mainExpr = Ebinop (lexpr, binop, rexpr, pos)
   in
   fprintf ppf "%a %a %a" 
   bracket_binop_left mainExpr 
@@ -84,7 +84,7 @@ and
  * and adds them if needed then prints out the expr *)
 bracket_binop_left ppf expr =
   match expr with
-  | Ebinop (lexpr, binop, rexpr) ->
+  | Ebinop (lexpr, binop, rexpr, _) ->
     if (op_prec lexpr) < (op_prec expr) then
       fprintf ppf "(%a)" pr_expr lexpr
     else
@@ -96,7 +96,7 @@ and
  * and adds them if needed then prints out the expr *)
 bracket_binop_right ppf expr = 
   match expr with
-  | Ebinop (lexpr, binop, rexpr) ->
+  | Ebinop (lexpr, binop, rexpr, _) ->
     (* When right side is less than or equal in precedence to main expr
     * we need to add brackets *)
     if (op_prec rexpr) <= (op_prec expr) then
@@ -109,20 +109,20 @@ and
 (* Print unary ops
  * using bracket_unop to decide whether to add brackets or not 
  * depending on expression precedence *)
-pr_unop_expr ppf unop expr =
+pr_unop_expr ppf unop expr pos =
     match unop with
     | Op_minus -> fprintf ppf "%a%a" 
                   pr_unop unop 
-                  bracket_unop (Eunop (unop,expr))
+                  bracket_unop (Eunop (unop,expr, pos))
     | Op_not   -> fprintf ppf "%a %a" 
                   pr_unop unop 
-                  bracket_unop (Eunop (unop,expr))
+                  bracket_unop (Eunop (unop,expr, pos))
 and
 (* Adds brackets to expression following unary op if 
  * its precedence is lower than main expression then prints *)
 bracket_unop ppf expr =
   match expr with
-  | Eunop (unop, subexpr) ->
+  | Eunop (unop, subexpr, _) ->
     if (op_prec subexpr) < (op_prec expr) then
       fprintf ppf "(%a)" pr_expr subexpr
     else 
@@ -145,7 +145,7 @@ let pr_rval ppf rval =
 (* Prints an interval of the form 1..8 *)
 let pr_interval ppf inter =
   match inter with
-  | Interval (low, high) ->
+  | Interval (low, high, _) ->
     fprintf ppf "%d..%d" low high
   
 (* Print a comma separated list of intervals using recursion *)  
@@ -153,7 +153,8 @@ let rec pr_comma_sep_inters ppf inters =
   match inters with
   | [] -> ()
   | [inter] -> fprintf ppf "%a" pr_interval inter
-  | inter :: is -> fprintf ppf "%a, " pr_interval inter ; pr_comma_sep_inters ppf is
+  | inter :: is -> fprintf ppf "%a, " pr_interval inter 
+                                    ; pr_comma_sep_inters ppf is
 
 (* Prints snicktype *)
 let pr_snicktype ppf stype =
@@ -171,9 +172,9 @@ let pr_passtype ppf ptype =
 (* Prints declaration by calling other print functions *)
 let pr_decl ppf decl =
   match decl with
-  | RegDecl (id, stype) 
+  | RegDecl (id, stype, _) 
     -> fprintf ppf "%a %s;" pr_snicktype stype id
-  | ArrayDecl (id, stype, inters)
+  | ArrayDecl (id, stype, inters, _)
     -> fprintf ppf "%a %s[%a];" pr_snicktype stype id pr_comma_sep_inters inters
 
 (* Prints list of decls by recursively calling pr_decl *)
@@ -188,7 +189,7 @@ let rec pr_decls ppf decls =
 (* Prints statement by calling the relative function for printing *)
 let rec pr_stmt ppf stmt =
   match stmt with
-  | Assign (lval, rval) 
+  | Assign (lval, rval, _) 
     -> fprintf ppf "%a := %a;" pr_lval lval pr_rval rval
   | Read lval -> fprintf ppf "read %a;" pr_lval lval
   | Write expr -> fprintf ppf "write %a;" pr_expr expr
@@ -196,7 +197,7 @@ let rec pr_stmt ppf stmt =
   | IfthenElse (expr, thenStmts, elseStmts) 
     -> pr_ifThenElse ppf expr thenStmts elseStmts
   | WhileDo (expr, stmts) -> pr_whileDo ppf expr stmts
-  | ProcCall (id, exprs) 
+  | ProcCall (id, exprs, _) 
     -> fprintf ppf "%s(%a);" id pr_comma_sep_exprs exprs
 and
 (* Print statements by recursively calling pr_stmt *)
@@ -230,7 +231,7 @@ pr_whileDo ppf expr stmts =
    * because of doubly recursive statements flipping the order again*)
 
 (* Print process argument *)
-let pr_arg ppf (ptype, stype, id) =
+let pr_arg ppf (ptype, stype, id, _) =
   fprintf ppf "%a %a %s" pr_passtype ptype pr_snicktype stype id
 
 (* Print comma separated arguments by
@@ -262,7 +263,7 @@ let pr_proc_body ppf (decls, stmts) =
 (* Print the full process flushing pretty
  * printer at the end of each process
  * because each process is separate *)
-let pr_proc ppf (id, args, proc_body) =
+let pr_proc ppf (id, args, proc_body, _) =
   fprintf ppf
   "@[<v>proc %s %a@;<0 4>%a@;end@]@."
   id pr_args args pr_proc_body proc_body

@@ -8,6 +8,11 @@
 open Snick_ast
 
 let parse_error msg = Printf.eprintf "%s\n" msg
+
+let sym_pos () =
+  let start = Parsing.symbol_start_pos () in
+  let finish = Parsing.symbol_end_pos () in
+  (start, finish)
 %}
 
 %token <bool> BOOL_CONST
@@ -53,15 +58,16 @@ procs:
 
 proc:
   /* Empty process header */
-  | PROC IDENT LPAREN RPAREN proc_body END { ($2, [], $5) }
-  | PROC IDENT LPAREN proc_args RPAREN proc_body END { ($2, List.rev $4, $6) }
+  | PROC IDENT LPAREN RPAREN proc_body END { ($2, [], $5, sym_pos()) }
+  | PROC IDENT LPAREN proc_args RPAREN proc_body END { ($2, List.rev $4,
+                                                        $6, sym_pos()) }
 
 proc_args:
   | proc_args COMMA arg { $3 :: $1 }
   | arg                 { [$1] }
 
 arg:
-  | arg_pass_type typespec IDENT { ($1, $2, $3) }
+  | arg_pass_type typespec IDENT { ($1, $2, $3, sym_pos()) }
 
 arg_pass_type:
   | VAL { Val }
@@ -72,8 +78,9 @@ proc_body:
 
 /* 2 types of declarations, one regular, one for arrays */
 decl :
-  | typespec IDENT SEMICOLON { RegDecl ($2, $1) }
-  | typespec IDENT LSQBRACKET intervals RSQBRACKET SEMICOLON { ArrayDecl ($2, $1, List.rev $4) }
+  | typespec IDENT SEMICOLON { RegDecl ($2, $1, sym_pos()) }
+  | typespec IDENT LSQBRACKET intervals RSQBRACKET SEMICOLON { ArrayDecl 
+                                        ($2, $1, List.rev $4, sym_pos()) }
 
 decls :
   | decls decl { $2 :: $1 }
@@ -99,51 +106,51 @@ stmt_body:
   | proc_call { ProcCall $1 }
   | READ lvalue { Read $2 }
   | WRITE expr { Write $2 }
-  | lvalue ASSIGN rvalue { Assign ($1, $3) }
+  | lvalue ASSIGN rvalue { Assign ($1, $3, sym_pos()) }
 
 /* Process call with either no args or list of args */
 proc_call:
-  | IDENT LPAREN RPAREN       { ($1, []) }
-  | IDENT LPAREN exprs RPAREN { ($1, List.rev $3) }
+  | IDENT LPAREN RPAREN       { ($1, [], sym_pos()) }
+  | IDENT LPAREN exprs RPAREN { ($1, List.rev $3, sym_pos()) }
 
 rvalue :
   | expr { Rexpr $1 }
 
 /* Two types of variables, regular and array variable */
 lvalue:
-  | IDENT { LId $1 }
-  | IDENT LSQBRACKET exprs RSQBRACKET { LArray ($1, List.rev $3) }
+  | IDENT { LId ($1, sym_pos()) }
+  | IDENT LSQBRACKET exprs RSQBRACKET { LArray ($1, List.rev $3, sym_pos()) }
 
 literal:
-  | BOOL_CONST { Ebool $1 }
-  | INT_CONST { Eint $1 }
-  | FLOAT_CONST { Efloat $1 }
-  | STR_CONST { Estring $1 }
+  | BOOL_CONST { Ebool ($1, sym_pos()) }
+  | INT_CONST { Eint ($1, sym_pos()) }
+  | FLOAT_CONST { Efloat ($1, sym_pos()) }
+  | STR_CONST { Estring ($1, sym_pos()) }
 
 binop:
-  | expr PLUS expr { Ebinop ($1, Op_add, $3) }
-  | expr MINUS expr { Ebinop ($1, Op_sub, $3) }
-  | expr MUL expr { Ebinop ($1, Op_mul, $3) }
-  | expr DIV expr { Ebinop ($1, Op_div, $3) }
+  | expr PLUS expr { Ebinop ($1, Op_add, $3, sym_pos()) }
+  | expr MINUS expr { Ebinop ($1, Op_sub, $3, sym_pos()) }
+  | expr MUL expr { Ebinop ($1, Op_mul, $3, sym_pos()) }
+  | expr DIV expr { Ebinop ($1, Op_div, $3, sym_pos()) }
   /* Comparison */
-  | expr EQ expr { Ebinop ($1, Op_eq, $3) }
-  | expr LT expr { Ebinop ($1, Op_lt, $3) }
-  | expr GT expr { Ebinop ($1, Op_gt, $3) }
-  | expr LTEQ expr { Ebinop ($1, Op_lteq, $3) }
-  | expr GTEQ expr { Ebinop ($1, Op_gteq, $3) }
-  | expr NOTEQ expr { Ebinop ($1, Op_noteq, $3) }
+  | expr EQ expr { Ebinop ($1, Op_eq, $3, sym_pos()) }
+  | expr LT expr { Ebinop ($1, Op_lt, $3, sym_pos()) }
+  | expr GT expr { Ebinop ($1, Op_gt, $3, sym_pos()) }
+  | expr LTEQ expr { Ebinop ($1, Op_lteq, $3, sym_pos()) }
+  | expr GTEQ expr { Ebinop ($1, Op_gteq, $3, sym_pos()) }
+  | expr NOTEQ expr { Ebinop ($1, Op_noteq, $3, sym_pos()) }
   /* boolean ops */
-  | expr AND expr { Ebinop ($1, Op_and, $3) }
-  | expr OR expr { Ebinop ($1, Op_or, $3) }
+  | expr AND expr { Ebinop ($1, Op_and, $3, sym_pos()) }
+  | expr OR expr { Ebinop ($1, Op_or, $3, sym_pos()) }
 
 unop:
-  | MINUS expr %prec UMINUS { Eunop (Op_minus, $2) }
-  | NOT expr %prec UNOT { Eunop (Op_not, $2) }
+  | MINUS expr %prec UMINUS { Eunop (Op_minus, $2, sym_pos()) }
+  | NOT expr %prec UNOT { Eunop (Op_not, $2, sym_pos()) }
 
 /* Interval e.g. [1..8], must be int constants or meaningless
    this is only used when declaring arrays */
 interval:
-  | INT_CONST DOUBLEDOT INT_CONST { Interval ($1, $3) }
+  | INT_CONST DOUBLEDOT INT_CONST { Interval ($1, $3, sym_pos()) }
 
 /* List of comma separated intervals, non-empty 
    Used for declaring multidimensional arrays
@@ -160,7 +167,7 @@ exprs:
 
 expr:
   | literal { $1 }
-  | lvalue { Elval $1 }
+  | lvalue { Elval ($1, sym_pos()) }
   /* Binary operators */
   | binop { $1 }
   | unop { $1 }
