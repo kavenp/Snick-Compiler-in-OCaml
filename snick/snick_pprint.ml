@@ -56,7 +56,7 @@ let rec pr_expr ppf expr =
   | Ebool (ebool, _) -> fprintf ppf "%s" (string_of_bool ebool)
   | Eint (eint, _) -> fprintf ppf "%s" (string_of_int eint)
   | Efloat (efloat, _) -> fprintf ppf "%s"  efloat
-  | Estring (estring, _) -> fprintf ppf "%s" estring
+  (*| Estring (estring, _) -> fprintf ppf "%s" estring*)
   | Elval (elval, _) -> pr_lval ppf elval
   | Ebinop (lexpr, binop, rexpr, pos) -> pr_binop_expr ppf lexpr binop rexpr pos
   | Eunop (unop, expr, pos) -> pr_unop_expr ppf unop expr pos
@@ -137,6 +137,11 @@ pr_comma_sep_exprs ppf exprs =
   | expr :: es -> fprintf ppf "%a, " pr_expr expr ; pr_comma_sep_exprs ppf es
   | [] -> ()
 
+let pr_writeable ppf writeable =
+  match writeable with
+  | WExpr expr -> pr_expr ppf expr
+  | WString (string, _) -> fprintf ppf "%s" string
+
 (* Prints rval *)
 let pr_rval ppf rval =
   match rval with
@@ -192,7 +197,7 @@ let rec pr_stmt ppf stmt =
   | Assign (lval, rval, _) 
     -> fprintf ppf "%a := %a;" pr_lval lval pr_rval rval
   | Read lval -> fprintf ppf "read %a;" pr_lval lval
-  | Write expr -> fprintf ppf "write %a;" pr_expr expr
+  | Write writeable -> fprintf ppf "write %a;" pr_writeable writeable
   | Ifthen (expr, stmts) -> pr_ifThen ppf expr stmts
   | IfthenElse (expr, thenStmts, elseStmts) 
     -> pr_ifThenElse ppf expr thenStmts elseStmts

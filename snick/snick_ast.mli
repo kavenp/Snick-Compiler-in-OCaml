@@ -29,13 +29,16 @@ type expr =
   | Ebool of (bool * pos)
   | Eint of (int * pos)
   | Efloat of (string * pos)
-  | Estring of (string * pos)
   | Elval of (lvalue * pos)
   | Ebinop of (expr * binop * expr * pos)
   | Eunop of (unop * expr * pos)
 and lvalue =
   | LId of (ident * pos)
   | LArray of (ident * expr list * pos)
+
+type writeable =
+  | WExpr of expr
+  | WString of (string * pos)
 
 (* Will need to AST elements with additional data.  *)
 type rvalue =
@@ -52,7 +55,7 @@ type decl =
 type stmt = 
   | Assign of (lvalue * rvalue * pos)
   | Read of lvalue
-  | Write of expr
+  | Write of writeable
   | Ifthen of (expr * stmt list)
   | IfthenElse of (expr * stmt list * stmt list)
   | WhileDo of (expr * stmt list)

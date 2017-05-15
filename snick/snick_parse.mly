@@ -105,7 +105,7 @@ stmt :
 stmt_body:
   | proc_call { ProcCall $1 }
   | READ lvalue { Read $2 }
-  | WRITE expr { Write $2 }
+  | WRITE writeable { Write $2 }
   | lvalue ASSIGN rvalue { Assign ($1, $3, sym_pos()) }
 
 /* Process call with either no args or list of args */
@@ -125,7 +125,6 @@ literal:
   | BOOL_CONST { Ebool ($1, sym_pos()) }
   | INT_CONST { Eint ($1, sym_pos()) }
   | FLOAT_CONST { Efloat ($1, sym_pos()) }
-  | STR_CONST { Estring ($1, sym_pos()) }
 
 binop:
   | expr PLUS expr { Ebinop ($1, Op_add, $3, sym_pos()) }
@@ -172,4 +171,8 @@ expr:
   | binop { $1 }
   | unop { $1 }
   | LPAREN expr RPAREN { $2 }
+
+writeable:
+  | expr { WExpr $1 }
+  | STR_CONST { WString ($1, sym_pos()) }
   

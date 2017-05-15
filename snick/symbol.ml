@@ -59,3 +59,30 @@ exception Undefined_process of string * AST.pos
 exception No_allocated_Slot
 
 (*---- Symbol table Functions ----*)
+
+let get_proc_pos stbl id =
+  let proc = Hashtbl.find stbl.sprocs id in
+  proc.proc_pos
+
+let get_var_sym stbl proc_id var_id =
+  let proc = Hashtbl.find stbl.sprocs proc_id in
+  Hashtbl.find proc.proc_stbl var_id
+
+let get_lval_sym stbl proc_id lval =
+  match lval with
+  | AST.LId (id, _) ->
+    let (stype, _, slot, _) = get_var_sym stbl proc_id id in
+    (stype, slot)
+  (* Array symbol stuff here empty for now *)
+  | AST.LArray (id, dims, _) -> (AST.Bool, ref None)
+
+let get_id_type stbl proc_id id =
+  let proc = Hashtbl.find stbl.sprocs proc_id in
+  let (stype, _, _, _) = Hashtbl.find proc.proc_stbl id in
+  stype
+
+
+
+
+
+

@@ -1,7 +1,13 @@
 TARGETS = snick
 TARGETS_BYTE=$(TARGETS:%=%.byte)
 
-MODULES = snick_ast snick_lex snick_parse snick_pprint
+MODULES = snick_ast \
+	snick_lex \
+	snick_parse \
+	snick_pprint \
+	symbol \
+	analyze \
+	codegen 
 MLFILES = $(addsuffix .ml, $(MODULES))
 CMOFILES = $(addsuffix .cmo, $(MODULES))
 CMXFILES = $(addsuffix .cmx, $(MODULES))
