@@ -1,4 +1,4 @@
-(*---- Snick Symbol Table ----*)
+(*===== Snick Symbol Table =====*)
 
 module AST = Snick_ast
 

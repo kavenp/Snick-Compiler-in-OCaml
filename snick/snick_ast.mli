@@ -74,3 +74,4 @@ type program = {
 type t = program
 
 val get_pos_info: (Lexing.position * Lexing.position) -> ((int * int) * (int * int))
+val get_lval_pos: lvalue -> pos

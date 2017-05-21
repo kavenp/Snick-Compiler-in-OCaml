@@ -83,3 +83,8 @@ let get_pos_info (start_pos, end_pos) =
   let start_p = get_line_col start_pos in
   let end_p   = get_line_col end_pos in
   (start_p, end_p)
+
+let get_lval_pos lval =
+  match lval with
+  | LId (_, pos) -> pos
+  | LArray (_, _, pos) -> pos
