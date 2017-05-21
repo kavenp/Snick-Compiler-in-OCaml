@@ -304,7 +304,7 @@ and
 gen_expr stbl proc_id load_reg expr =
   match expr with
   | AST.Eint (i, _) -> gen_int_const load_reg i
-  | AST.Efloat (n, _) -> gen_real_const load_reg n
+  | AST.Efloat (n, _) -> gen_real_const load_reg (float_of_string n)
   | AST.Ebool (b, _) -> gen_bool_const load_reg b
   | AST.Elval (lval, _) -> gen_lval stbl proc_id load_reg lval
   | AST.Eunop (unop, expr, _) ->
