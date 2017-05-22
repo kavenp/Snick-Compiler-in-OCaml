@@ -73,15 +73,17 @@ let find_proc stbl proc_id pos =
   proc
 
 (*---- Symbol table Functions ----*)
-
+(* Gets position of the process *)
 let get_proc_pos stbl id pos =
   let proc = find_proc stbl id pos in
   proc.proc_pos
 
+(* Gets a variable symbol *)
 let get_var_sym stbl proc_id var_id pos =
   let proc = find_proc stbl proc_id pos in
   Hashtbl.find proc.proc_stbl var_id
 
+(* Gets a lvalue symbol *)
 let get_lval_sym stbl proc_id lval pos =
   match lval with
   | AST.LId (id, _) ->
@@ -90,21 +92,25 @@ let get_lval_sym stbl proc_id lval pos =
   (* Array symbol stuff here empty for now *)
   | AST.LArray (id, dims, _) -> (Tsym AST.Bool, ref None)
 
+(* Gets the type of a variable *)
 let get_id_type stbl proc_id id pos =
   let proc = find_proc stbl proc_id pos in
   let (stype, _, _, _) = Hashtbl.find proc.proc_stbl id in
   stype
 
+(* Gets the type of a lvalue *)
 let get_lval_type stbl proc_id lval pos =
   let (stype, _) = get_lval_sym stbl proc_id lval pos in
   stype
 
+(* Sets the stack slot number for a variable *)
 let set_id_slot stbl proc_id id slot pos =
   let proc = find_proc stbl proc_id pos in
   let (_, _, slot_num, _) = Hashtbl.find proc.proc_stbl id in
   slot_num := Some slot;
   slot+1
 
+(* Gets the stack slot for a variable *)
 let get_id_slot stbl proc_id id pos =
   let proc = find_proc stbl proc_id pos in
   let (_, _, slot, _) = Hashtbl.find proc.proc_stbl id in
@@ -112,16 +118,19 @@ let get_id_slot stbl proc_id id pos =
   | None -> raise No_allocated_Slot
   | Some n -> n
 
+(* Sets the label name for a procedure*)
 let set_proc_label stbl proc_id label pos =
   let proc = find_proc stbl proc_id pos in
   proc.proc_label := Some label
 
+(* Gets the procedures label name *)
 let get_proc_label stbl proc_id pos =
   let proc = find_proc stbl proc_id pos in
   match !(proc.proc_label) with
   | None -> raise (Undefined_process (proc_id, pos))
   | Some label -> label
 
+(* Gets the arguments for a procedure *)
 let get_args stbl proc_id pos =
   let proc = find_proc stbl proc_id pos in
   proc.proc_args
@@ -133,6 +142,7 @@ let get_var_scope stbl proc_id id pos =
   let (_, scope, _, _) = Hashtbl.find proc_stbl id in
   scope
 
+(* Gets an lvalue's scope *)
 let get_lval_scope stbl proc_id lval pos =
   match lval with
   | AST.LId (id, _) -> get_var_scope stbl proc_id id pos
@@ -144,13 +154,16 @@ let get_lval_scope stbl proc_id lval pos =
 let make_type_sym snicktype =
   Tsym snicktype
 
+(* Makes a variable symbol *)
 let make_var_sym tsym scope pos =
   (tsym , scope, ref None, pos)
 
+(* Makes a declaration symbol *)
 let make_decl_sym decl_type pos =
   let tsym = make_type_sym decl_type in
   make_var_sym tsym SDecl pos
 
+(* Adds a declaration symbol to the table *)
 let add_decl_sym proc_stbl decl =
   match decl with
   | AST.RegDecl (id, decl_type, pos) ->
@@ -162,6 +175,7 @@ let add_decl_sym proc_stbl decl =
   (* Array declaration placeholder *)
   | AST.ArrayDecl (id, decl_type, intervals, pos) -> ()
 
+(* Makes an argument symbol *)
 let make_arg_sym arg_pass arg_type pos =
   let tsym = make_type_sym arg_type in
   let arg_scope =
@@ -171,6 +185,7 @@ let make_arg_sym arg_pass arg_type pos =
   in
   make_var_sym tsym arg_scope pos
 
+(* Adds an argument symbol to the table *)
 let add_arg_sym proc_stbl arg =
   let (arg_pass, arg_type, id, pos) = arg in
   let arg_sym = make_arg_sym arg_pass arg_type pos in
@@ -179,6 +194,7 @@ let add_arg_sym proc_stbl arg =
   else
     Hashtbl.add proc_stbl id arg_sym
 
+ (* Adds a procedure to the symbol table *)
 let add_proc stbl proc =
   let (proc_id, args, (decls, _), pos) = proc in
   if Hashtbl.mem stbl proc_id then
@@ -201,20 +217,23 @@ let add_proc stbl proc =
     in
     Hashtbl.add stbl proc_id proc_sym
 
+(* Adds all procedures to the symbol table *)
 let add_procs stbl procs =
   List.iter (add_proc stbl) procs
 
+(* Builds the symbol table *)
 let build_stbl ast =
   let stbl = Hashtbl.create 10 in
   add_procs stbl ast.AST.procs;
   { sprocs = stbl }
 
+(* Builds a symbol table that is checked while building *)
 let build_stbl_checks ast =
   try
     build_stbl ast
   with
   | Duplicate_proc (id, pos) ->
-    raise (Definition_error ("Type " ^id^ " is already defined.", pos))
+    raise (Definition_error ("Process " ^id^ " is already defined.", pos))
   | Duplicate_arg (id, pos) ->
     raise (Definition_error ("Argument " ^id^ " is already passed.", pos))
   | Duplicate_decl (id, pos) ->

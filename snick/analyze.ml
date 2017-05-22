@@ -18,7 +18,7 @@ exception Incorrect_Number_of_Args of string * AST.pos
 exception Reference_Error of string * AST.pos
 exception Variable_Name_Conflict of string * AST.pos
 exception Type_Error of string * AST.pos
-exception Main_Has_Args
+exception Main_Has_Args of AST.pos
 exception Missing_Main
 
 (*---- Helper Functions ----*)
@@ -38,6 +38,7 @@ let is_convert_eq_type tsym1 tsym2 =
   | (ST.Tsym AST.Float, ST.Tsym AST.Int) -> true
   | _ -> false
 
+(* Gets expression position *)
 let get_expr_pos expr =
   match expr with
   | AST.Ebool (_, pos) -> pos
@@ -47,6 +48,7 @@ let get_expr_pos expr =
   | AST.Ebinop (_, _, _, pos) -> pos
   | AST.Eunop (_, _, pos) -> pos
 
+(* Gets expression type *)
 let rec expr_type stbl proc_id expr =
   match expr with
   | AST.Ebool _ -> ST.Tsym AST.Bool
@@ -84,6 +86,7 @@ and resolve_arithmetic_type lt rt pos =
   | (ST.Tsym AST.Int, ST.Tsym AST.Int) -> ST.Tsym AST.Int
   | _ -> raise (Type_Error("Non-Arithmetic type", pos))
 
+(* Checks whether binop operands are the correct type *)
 let valid_binop_operand binop op_type =
   let is_num t = 
     same_type (ST.Tsym AST.Int) t || same_type (ST.Tsym AST.Float) t in
@@ -104,6 +107,7 @@ let valid_binop_operand binop op_type =
   | AST.Op_and
   | AST.Op_or -> is_bool op_type
 
+(* Checks if unary operations are of correct type *)
 let valid_unop_operand unop op_type =
   let is_num t = 
     same_type (ST.Tsym AST.Int) t || same_type (ST.Tsym AST.Float) t in
@@ -116,6 +120,7 @@ let valid_unop_operand unop op_type =
 
 
 (*---- Semantic Checks ----*)
+(* Check if variable is defined *)
 let check_var_defined stbl proc_id id pos =
   let ptbl = Hashtbl.find stbl.ST.sprocs id in
   if Hashtbl.mem ptbl.ST.proc_stbl id then
@@ -123,6 +128,7 @@ let check_var_defined stbl proc_id id pos =
   else
     raise (ST.Undefined_variable(id, pos))
 
+(* Checks if declaration name has conflicts *)
 let check_decl_name stbl proc_id id pos =
   let scope = ST.get_var_scope stbl proc_id id pos in
   match scope with
@@ -130,12 +136,14 @@ let check_decl_name stbl proc_id id pos =
   | ST.SRefParam | ST.SValParam ->
       raise (Variable_Name_Conflict(id, pos))
 
+(* Check if a process is defined *)
 let check_proc_defined stbl proc_id pos =
   if Hashtbl.mem stbl.ST.sprocs proc_id then
     ()
   else
     raise (ST.Undefined_process(proc_id, pos))
 
+(* Checks if the number of arguments for a proc call matches *)
 let check_proc_call_args stbl proc_id args pos =
   let params = ST.get_args stbl proc_id pos in
   if List.length params = List.length args then
@@ -143,22 +151,26 @@ let check_proc_call_args stbl proc_id args pos =
   else
     raise (Incorrect_Number_of_Args(proc_id, pos))
 
+(* Checks existence of Main proc and other errors *)
 let check_main stbl =
   let ptbl = stbl.ST.sprocs in
   if Hashtbl.mem ptbl "main" then
     let main = Hashtbl.find ptbl "main" in
+    let pos = main.ST.proc_pos in
     if List.length main.ST.proc_args = 0 then
       ()
     else
-      raise Main_Has_Args
+      raise (Main_Has_Args pos)
   else
     raise Missing_Main
 
+(* Checks if lval exists *)
 let check_lval stbl proc_id lval =
   match lval with
   | AST.LId (id, pos) -> check_var_defined stbl proc_id id pos
   | _ -> () (* Array check here *)
 
+(* Checks if the pass type of a variable is correct *)
 let check_pass_type stbl caller callee id arg pos =
   let psym = ST.get_var_sym stbl callee id pos in
   let (_, scope, _, _) = psym in

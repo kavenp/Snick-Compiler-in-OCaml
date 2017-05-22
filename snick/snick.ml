@@ -57,7 +57,7 @@ try
   | PrettyPrint ->
     Snick_pprint.print_program Format.std_formatter prog 
   | Compile -> 
-      let ir_code = Codegen.gen_code stbl prog in
+      let ir_code = Codegen.gen_checked_code stbl prog in
       let brill_code = Snick_brill.generate_brill_code ir_code in
       try
         Printf.fprintf outfile "%s" brill_code;

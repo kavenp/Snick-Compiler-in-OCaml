@@ -19,6 +19,7 @@ OCAMLLEX = ocamllex
 OCAMLYACC = ocamlyacc
 OCAMLDEP = ocamldep
 SUBMIT1B = submit COMP90045 1b
+SUBMIT3B = submit COMP90045 3b
 
 OCAMLFLAGS =
 
@@ -60,7 +61,10 @@ clobber : clean
 depend: snick_lex.ml snick_parse.ml
 	$(OCAMLDEP) snick.ml snick.mli $(ALLMODULES:%=%.mli) $(ALLMODULES:%=%.ml) >Makefile.depend
 
-submit: 
+submit3:
+	$(SUBMIT3B) snick.ml snick_ast.ml snick_ast.mli snick_lex.mll snick_parse.mly snick_pprint.ml snick_pprint.mli symbol.ml analyze.ml codegen.ml snick_brill.ml Makefile Makefile.depend
+
+submit1: 
 	$(SUBMIT1B) snick.ml snick_ast.ml snick_ast.mli snick_lex.mll snick_parse.mly snick_pprint.ml snick_pprint.mli Makefile Makefile.depend
 
 -include Makefile.depend

@@ -84,6 +84,7 @@ type instruction =
   (* Stop Emulator *)
   | Halt
 
+(* Code is a list of instructions *)
 type code = instruction list
 
 (*----- Exceptions -----*)
@@ -93,12 +94,14 @@ exception Uncaught_Semantic_Error of string
 (*----- Code Generation -----*)
 
 (*---- Declarations ----*)
+(* Generates code for regular declarations *)
 let gen_reg_decl_code frame_size t =
   match t with
   | AST.Int -> [Store (StackSlot frame_size, Reg 0); IntConst(Reg 0, 0)]
   | AST.Float -> [Store (StackSlot frame_size, Reg 0); RealConst(Reg 0, 0.0)]
   | AST.Bool -> [Store (StackSlot frame_size, Reg 0); IntConst(Reg 0, 0)]
 
+(* Generates all declaration code *)
 let gen_decl_code stbl proc (frame_size, code) decl = 
   match decl with
   | AST.RegDecl (id, rtype, pos) ->
@@ -108,12 +111,14 @@ let gen_decl_code stbl proc (frame_size, code) decl =
   | AST.ArrayDecl _ -> (frame_size, []) (* TODO: Array code here *)
 
 (*---- Type Resolution ----*)
+(* Resolves pass types to the 2 basic types Value and Reference *)
 let get_pass_type scope =
   match scope with
   | ST.SDecl
   | ST.SValParam -> Val
   | ST.SRefParam -> Ref
 
+(* Gets an expression's return type *)
 let rec expr_type stbl proc_id expr =
   match expr with
   | AST.Ebool _ -> ST.Tsym AST.Bool
@@ -149,7 +154,7 @@ and resolve_arithmetic_type lt rt pos =
   | (ST.Tsym AST.Int, ST.Tsym AST.Int) -> ST.Tsym AST.Int
   | (ST.Tsym AST.Float, ST.Tsym AST.Int) -> ST.Tsym AST.Float
   | (ST.Tsym AST.Int, ST.Tsym AST.Float) -> ST.Tsym AST.Float
-  | _ -> raise (AN.Type_Error("Arithmetic type doesn't match", pos))
+  | _ -> raise (AN.Type_Error("Non-Arithmetic Type", pos))
 
 (*---- IO Read ----*)
 
@@ -165,42 +170,43 @@ let gen_read stbl proc_id lval =
         | AST.Bool -> ReadBool)
       in
       let slot_num = ST.get_id_slot stbl proc_id id pos in
-      (match ST.get_var_scope stbl proc_id id pos with
-      | ST.SDecl
-      | ST.SValParam -> [Store (StackSlot slot_num, Reg 0);
+      (match (get_pass_type (ST.get_var_scope stbl proc_id id pos)) with
+      | Val -> [Store (StackSlot slot_num, Reg 0);
                          CallBuiltin read]
-      | ST.SRefParam -> [StoreIndirect (Reg 1, Reg 0);
+      | Ref -> [StoreIndirect (Reg 1, Reg 0);
                          Load (Reg 1, StackSlot slot_num);
                          CallBuiltin read])
-  | AST.LArray _ -> []
+  | AST.LArray _ -> [] (* TODO: Array read *)
 
 (*---- Expression Evaluation ----*)
-
+(* Int constant code *)
 let gen_int_const load_reg i =
   [IntConst (load_reg, i)]
-
+(* Real constant code *)
 let gen_real_const load_reg n =
   [RealConst (load_reg, n)]
-
+(* Bool constant code *)
 let gen_bool_const load_reg b =
   match b with
   | true -> [IntConst (load_reg, 1)]
   | false -> [IntConst (load_reg, 0)]
 
+(* Lvalue code generation *)
 let gen_lval stbl proc_id load_reg lval =
   let (scope, slot_num) =
     match lval with
+    (* TODO: Array lval code *)
     | AST.LArray _ -> (ST.SRefParam, 0)
     | AST.LId (id, pos) ->
       (ST.get_lval_scope stbl proc_id lval pos, 
        ST.get_id_slot stbl proc_id id pos)
   in
-  match scope with
-  | ST.SDecl
-  | ST.SValParam -> [Load (load_reg, StackSlot slot_num)]
-  | ST.SRefParam -> [LoadIndirect (load_reg, load_reg); 
+  match (get_pass_type scope) with
+  | Val -> [Load (load_reg, StackSlot slot_num)]
+  | Ref -> [LoadIndirect (load_reg, load_reg); 
                      Load (load_reg, StackSlot slot_num)]
 
+(* Unary Operation code generation *)
 let rec gen_unop_expr stbl proc_id load_reg unop expr =
   let subexpr_code = gen_expr stbl proc_id load_reg expr in
   let ST.Tsym subexpr_type = expr_type stbl proc_id expr in
@@ -219,6 +225,8 @@ let rec gen_unop_expr stbl proc_id load_reg unop expr =
   in
   unop_code @ subexpr_code
 and
+(* Binary Operation code generation
+ * This step includes type conversion when necessary *)
 gen_binop_expr stbl proc_id load_reg binop lexpr rexpr =
   let (Reg r) = load_reg in
   let lexpr_code = gen_expr stbl proc_id (Reg r) lexpr in
@@ -230,81 +238,82 @@ gen_binop_expr stbl proc_id load_reg binop lexpr rexpr =
   let binop_code =
     match (lexpr_t, binop, rexpr_t) with
     (* Arithmetic Conversion operations *)
-    | (AST.Int, AST.Op_add, AST.Float) -> [AddReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Int, AST.Op_add, AST.Float)  -> [AddReal (Reg r, Reg r, Reg (r+1));
                                            con_l]
-    | (AST.Float, AST.Op_add, AST.Int) -> [AddReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Float, AST.Op_add, AST.Int)  -> [AddReal (Reg r, Reg r, Reg (r+1));
                                            con_r]
-    | (AST.Int, AST.Op_sub, AST.Float) -> [SubReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Int, AST.Op_sub, AST.Float)  -> [SubReal (Reg r, Reg r, Reg (r+1));
                                            con_l]
-    | (AST.Float, AST.Op_sub, AST.Int) -> [SubReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Float, AST.Op_sub, AST.Int)  -> [SubReal (Reg r, Reg r, Reg (r+1));
                                            con_r]
-    | (AST.Int, AST.Op_mul, AST.Float) -> [MulReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Int, AST.Op_mul, AST.Float)  -> [MulReal (Reg r, Reg r, Reg (r+1));
                                            con_l]
-    | (AST.Float, AST.Op_mul, AST.Int) -> [MulReal (Reg r, Reg r, Reg(r+1));
+    | (AST.Float, AST.Op_mul, AST.Int)  -> [MulReal (Reg r, Reg r, Reg(r+1));
                                            con_r]
-    | (AST.Int, AST.Op_div, AST.Float) -> [DivReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Int, AST.Op_div, AST.Float)  -> [DivReal (Reg r, Reg r, Reg (r+1));
                                            con_l]
-    | (AST.Float, AST.Op_div, AST.Int) -> [DivReal (Reg r, Reg r, Reg (r+1));
+    | (AST.Float, AST.Op_div, AST.Int)  -> [DivReal (Reg r, Reg r, Reg (r+1));
                                            con_r]
     (* Comparison Conversion operations *)
-    | (AST.Int, AST.Op_gt, AST.Float) -> [CmpGtReal (Reg r, Reg r, Reg (r+1));
-                                          con_l]
-    | (AST.Float, AST.Op_gt, AST.Int) -> [CmpGtReal (Reg r, Reg r, Reg (r+1));
-                                          con_r]
+    | (AST.Int, AST.Op_gt, AST.Float)   -> [CmpGtReal (Reg r, Reg r, Reg (r+1));
+                                           con_l]
+    | (AST.Float, AST.Op_gt, AST.Int)   -> [CmpGtReal (Reg r, Reg r, Reg (r+1));
+                                           con_r]
     | (AST.Int, AST.Op_gteq, AST.Float) -> [CmpGeReal (Reg r, Reg r, Reg (r+1));
-                                            con_l]
+                                           con_l]
     | (AST.Float, AST.Op_gteq, AST.Int) -> [CmpGeReal (Reg r, Reg r, Reg (r+1));
-                                            con_r]
-    | (AST.Int, AST.Op_lt, AST.Float) -> [CmpLtReal (Reg r, Reg r, Reg (r+1));
-                                          con_l]
-    | (AST.Float, AST.Op_lt, AST.Int) -> [CmpLtReal (Reg r, Reg r, Reg (r+1));
-                                          con_r]
+                                           con_r]
+    | (AST.Int, AST.Op_lt, AST.Float)   -> [CmpLtReal (Reg r, Reg r, Reg (r+1));
+                                           con_l]
+    | (AST.Float, AST.Op_lt, AST.Int)   -> [CmpLtReal (Reg r, Reg r, Reg (r+1));
+                                           con_r]
     | (AST.Int, AST.Op_lteq, AST.Float) -> [CmpLeReal (Reg r, Reg r, Reg (r+1));
-                                            con_l]
+                                           con_l]
     | (AST.Float, AST.Op_lteq, AST.Int) -> [CmpLeReal (Reg r, Reg r, Reg (r+1));
                                             con_r]
     (* Boolean Ops *)
-    | (AST.Bool, AST.Op_and, AST.Bool) -> [And (Reg r, Reg r, Reg(r+1))]
+    | (AST.Bool, AST.Op_and, AST.Bool)  -> [And (Reg r, Reg r, Reg(r+1))]
     | (_, AST.Op_and, _) -> raise (Uncaught_Semantic_Error "Boolean op AND")
-    | (AST.Bool, AST.Op_or, AST.Bool) -> [Or (Reg r, Reg r, Reg(r+1))]
-    | (_, AST.Op_or, _) -> raise (Uncaught_Semantic_Error "Boolean op OR")
+    | (AST.Bool, AST.Op_or, AST.Bool)   -> [Or (Reg r, Reg r, Reg(r+1))]
+    | (_, AST.Op_or, _)  -> raise (Uncaught_Semantic_Error "Boolean op OR")
     (* Integer Ops *)
-    | (AST.Int, AST.Op_add, AST.Int) -> [AddInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_sub, AST.Int) -> [SubInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_mul, AST.Int) -> [MulInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_div, AST.Int) -> [DivInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_eq, AST.Int) -> [CmpEqInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_noteq, AST.Int) -> [CmpNeInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_gt, AST.Int) -> [CmpGtInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_gteq, AST.Int) -> [CmpGeInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_lt, AST.Int) -> [CmpLtInt (Reg r, Reg r, Reg (r+1))]
-    | (AST.Int, AST.Op_lteq, AST.Int) -> [CmpLeInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_add, AST.Int)    -> [AddInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_sub, AST.Int)    -> [SubInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_mul, AST.Int)    -> [MulInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_div, AST.Int)    -> [DivInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_eq, AST.Int)     -> [CmpEqInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_noteq, AST.Int)  -> [CmpNeInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_gt, AST.Int)     -> [CmpGtInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_gteq, AST.Int)   -> [CmpGeInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_lt, AST.Int)     -> [CmpLtInt (Reg r, Reg r, Reg (r+1))]
+    | (AST.Int, AST.Op_lteq, AST.Int)   -> [CmpLeInt (Reg r, Reg r, Reg (r+1))]
     (* Real Ops *)
-    | (AST.Float, AST.Op_add, AST.Float) -> 
+    | (AST.Float, AST.Op_add, AST.Float)   -> 
                                 [AddReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_sub, AST.Float) -> 
+    | (AST.Float, AST.Op_sub, AST.Float)   -> 
                                 [SubReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_mul, AST.Float) -> 
+    | (AST.Float, AST.Op_mul, AST.Float)   -> 
                                 [MulReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_div, AST.Float) -> 
+    | (AST.Float, AST.Op_div, AST.Float)   -> 
                                 [DivReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_eq, AST.Float) -> 
+    | (AST.Float, AST.Op_eq, AST.Float)    -> 
                                 [CmpEqReal (Reg r, Reg r, Reg (r+1))]
     | (AST.Float, AST.Op_noteq, AST.Float) -> 
                                 [CmpNeReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_gt, AST.Float) -> 
+    | (AST.Float, AST.Op_gt, AST.Float)    -> 
                                 [CmpGtReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_gteq, AST.Float) -> 
+    | (AST.Float, AST.Op_gteq, AST.Float)  -> 
                                 [CmpGeReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_lt, AST.Float) -> 
+    | (AST.Float, AST.Op_lt, AST.Float)    -> 
                                 [CmpLtReal (Reg r, Reg r, Reg (r+1))]
-    | (AST.Float, AST.Op_lteq, AST.Float) -> 
+    | (AST.Float, AST.Op_lteq, AST.Float)  -> 
                                 [CmpLeReal (Reg r, Reg r, Reg (r+1))]
     | _ -> 
     raise (Uncaught_Semantic_Error "Binop doesn't take arguments of this type")
   in
   binop_code @ rexpr_code @ lexpr_code
 and
+(* Top level Expression Code Generation Function *)
 gen_expr stbl proc_id load_reg expr =
   match expr with
   | AST.Eint (i, _) -> gen_int_const load_reg i
@@ -317,25 +326,9 @@ gen_expr stbl proc_id load_reg expr =
       gen_binop_expr stbl proc_id load_reg binop lexpr rexpr
 
 (*---- Assignment ----*)
-
-(*let gen_assign stbl proc_id reg scope slot expr =
-  let slot_num =
-    match !slot with
-    | Some num -> num
-    | None -> raise (Unimplemented "No Slot Assigned")
-  in
-  let expr_code = gen_expr stbl proc_id reg expr in
-  let (Reg r) = reg in
-  let next_reg = Reg (r+1) in
-  let asgn_code =
-    match scope with
-    | ST.SDecl
-    | ST.SValParam -> [Store (StackSlot slot_num, reg)]
-    | ST.SRefParam -> [StoreIndirect (next_reg, reg);
-                       Load (next_reg, StackSlot slot_num)]
-  in
-  asgn_code @ expr_code*)
-
+(* Lvalue Assignment
+ * conv is a boolean which is true only when a IntToReal call is necessary
+ * on the rval *)
 let gen_lval_assign reg (lscope, lslot) (rscope, rslot) conv=
   let lslot_num =
     match !lslot with
@@ -362,12 +355,13 @@ let gen_lval_assign reg (lscope, lslot) (rscope, rslot) conv=
                    Load (next_reg, StackSlot lslot_num);
                    LoadIndirect (reg, reg);
                    Load (reg, StackSlot rslot_num)]
+  (* IntToReal Conversion of rval *)
   | (Val, Val, true) -> [Store (StackSlot lslot_num, reg);
                          IntToReal (reg, reg);
                          Load (reg, StackSlot rslot_num)]
   | (Val, Ref, true) -> [Store (StackSlot lslot_num, reg);
-                         LoadIndirect (reg, reg);
                          IntToReal (reg, reg);
+                         LoadIndirect (reg, reg);
                          Load (reg, StackSlot rslot_num)]
   | (Ref, Val, true) -> [StoreIndirect (next_reg, reg);
                          Load (next_reg, StackSlot lslot_num);
@@ -375,11 +369,11 @@ let gen_lval_assign reg (lscope, lslot) (rscope, rslot) conv=
                          Load (reg, StackSlot rslot_num)]
   | (Ref, Ref, true) -> [StoreIndirect (next_reg, reg);
                          Load (next_reg, StackSlot lslot_num);
-                         LoadIndirect (reg, reg);
                          IntToReal (reg, reg);
+                         LoadIndirect (reg, reg);
                          Load (reg, StackSlot rslot_num)]
 
-
+(* Generate code for all possible types of lvalue assignment *)
 let gen_lval_assign_code stbl proc_id lval rval =
   let lpos = AST.get_lval_pos lval in
   let rpos = AST.get_lval_pos rval in
@@ -388,11 +382,13 @@ let gen_lval_assign_code stbl proc_id lval rval =
   let (l_tsym, lslot) = ST.get_lval_sym stbl proc_id lval lpos in
   let (r_tsym, rslot) = ST.get_lval_sym stbl proc_id rval rpos in
   match (l_tsym, r_tsym) with
+  (* Only when lvalue type is float and rvalue type is int do we convert *)
   | (ST.Tsym AST.Float, ST.Tsym AST.Int) ->
       gen_lval_assign (Reg 0) (lscope, lslot) (rscope, rslot) true
   | (ST.Tsym _, ST.Tsym _) ->
       gen_lval_assign (Reg 0) (lscope, lslot) (rscope, rslot) false
 
+(* Generate all assignment code *)
 let gen_assign_code stbl proc_id lval rval =
   let lid_assign id =
     let pos = AST.get_lval_pos lval in
@@ -417,13 +413,14 @@ let gen_assign_code stbl proc_id lval rval =
         asgn_code @ expr_code
 
 (*---- IO Write ----*)
-
+(* Builtin write functions *)
 let gen_builtin_write t =
   match t with
   | AST.Int -> [CallBuiltin PrintInt]
   | AST.Float -> [CallBuiltin PrintReal]
   | AST.Bool -> [CallBuiltin PrintBool]
 
+(* Generate write code *)
 let gen_write stbl proc_id wrt =
   let print_reg = Reg 0 in
   match wrt with
@@ -436,6 +433,7 @@ let gen_write stbl proc_id wrt =
       print_code @ expr_code
 
 (*---- Proc Calls ----*)
+(* Generate code for passing arguments *)
 let gen_arg_pass_code callee_scope caller_scope argnum (tsym, slot) =
   let gen_val_val_pass narg nslot = [Load (Reg narg, StackSlot nslot)] in
   let gen_ref_ref_pass narg nslot = gen_val_val_pass narg nslot in
@@ -459,7 +457,10 @@ let gen_arg_pass_code callee_scope caller_scope argnum (tsym, slot) =
       in
       (argnum+1, gen_pass_code argnum slot_num)
 
+(* Generate procedure call code *)
 let gen_proc_call_code stbl caller callee exprs pos =
+  (* Check that number of arguments match *)
+  AN.check_proc_call_args stbl callee exprs pos;
   let gen_lval_pass_code arg_id lval (argnum, code) =
     match lval with
     | AST.LId (id, pos) ->
@@ -487,10 +488,12 @@ let gen_proc_call_code stbl caller callee exprs pos =
   let call_code = [Call (Label proclabel)] in
   call_code @ arg_code
 
+(* Generate regular argument code *)
 let gen_reg_arg_code argnum slotnum slot =
   slot := Some slotnum;
   (argnum+1, slotnum+1, [Store (StackSlot slotnum, Reg argnum)])
 
+(* Generate all arguments code *)
 let gen_arg_code stbl proc_id (argnum, framesize, code) arg =
   let (_, _, id, pos) = arg in
   (* TODO: Semantic Check argument name *)
@@ -502,7 +505,10 @@ let gen_arg_code stbl proc_id (argnum, framesize, code) arg =
   in
   (n, nframesize, arg_code @ code)
 
-(* Instruction Control Flow *)
+(*----- Instruction Control Flow -----*)
+(* Label creation for all Control blocks *)
+(* Here n is used to differentiate multiple code blocks
+ * It will be incremented after creating each label of the same type *)
 let make_if_labels n = 
   let after_label = Label ("if_after" ^ string_of_int n) in
   (n+1, after_label)
@@ -522,6 +528,8 @@ let make_proc_label stbl proc () =
   let labelname = "proc_" ^ proc_id in
   ST.set_proc_label stbl proc_id labelname pos
 
+(* Generate Statement code *)
+(* Generate if code block *)
 let rec gen_if_code stbl proc_id n expr stmts =
   let (newlabel, afterlabel) = make_if_labels n in
   let cond_reg = Reg 0 in
@@ -534,6 +542,7 @@ let rec gen_if_code stbl proc_id n expr stmts =
   let after_code = [BlockLabel afterlabel] in
   (finallabel, after_code @ stmts_code @ branch_code @ expr_code)
 and
+(* Generate ifelse code block *)
 gen_ifelse_code stbl proc_id n expr if_stmts else_stmts =
   let (newlabel, afterlabel, elselabel) = make_ifelse_labels n in
   let cond_reg = Reg 0 in
@@ -556,6 +565,7 @@ gen_ifelse_code stbl proc_id n expr if_stmts else_stmts =
   in
   (label2, code)
 and
+(* Generate while code block *)
 gen_while_code stbl proc_id n expr stmts =
   let (newlabel, afterlabel, condlabel) = make_while_labels n in
   let cond_reg = Reg 0 in
@@ -591,13 +601,14 @@ gen_stmt_code stbl proc_id (n, code) stmt =
   (newlabel, stmt_code @ code)
 
 (*---- Procedure Code ----*)
-
+(* Generate code for a procedure *)
 let gen_proc_code stbl (n, code) proc =
   (* TODO: Can semantic check proc here *)
   let (proc_id, args, (decls, stmts), pos) = proc in
   let framesize = 0 in
   make_proc_label stbl proc ();
   let labelname = ST.get_proc_label stbl proc_id pos in
+  (* Curried functions used for folding over lists *)
   let arg_gen = gen_arg_code stbl proc_id in
   let decl_gen = gen_decl_code stbl proc_id in
   let stmt_gen = gen_stmt_code stbl proc_id in
@@ -611,18 +622,45 @@ let gen_proc_code stbl (n, code) proc =
     List.fold_left stmt_gen (n, decl_code) stmts
   in
   let label = Label labelname in
+  (* Get final framesize for prologue *)
   let prologue = [PushStackFrame framesize2; BlockLabel label] in
   let epilogue = [Return; PopStackFrame framesize2] in
+  (* Concat in reverse so it can be reversed at the end *)
   let proc_code = epilogue @ body_code @ prologue in
   (labels, proc_code @ code)
 
 (*---- Main ----*)
+(* Generate program intermediate code *)
 let gen_code stbl prog =
-  (* Semantic check main *)
+  (* Semantic check for main function *)
+  AN.check_main stbl;
   let procs = prog.AST.procs in
+  (* Normal prelude for Brill programs *)
   let prelude = [Call (Label "proc_main"); Halt] in
+  (* Label all procs first *)
   List.fold_right (make_proc_label stbl) procs ();
   let (_, prog) = List.fold_left (gen_proc_code stbl) (0, []) procs in
   prelude @ List.rev prog
 
-
+(* Generate program while checking for errors *)
+let gen_checked_code stbl prog =
+  try
+    gen_code stbl prog
+  with
+  | ST.Duplicate_proc (id, pos) ->
+    raise (ST.Definition_error ("Process " ^id^ " is already defined.", pos))
+  | ST.Duplicate_arg (id, pos) ->
+    raise (ST.Definition_error ("Argument " ^id^ " is already passed.", pos))
+  | ST.Duplicate_decl (id, pos) ->
+    raise (ST.Definition_error ("Variable " ^id^ " is already declared.", pos))
+  | ST.Undefined_variable (id, pos) ->
+    raise (ST.Definition_error ("Variable " ^id^ " is undefined.", pos))
+  | ST.Undefined_process (id, pos) ->
+    raise (ST.Definition_error ("Process " ^id^ " is undefined.", pos))
+  | AN.Main_Has_Args pos ->
+    raise (AN.Semantic_error("Main should not have arguments", pos))
+  | AN.Type_Error (msg, pos) ->
+    raise (AN.Semantic_error(msg, pos))
+  | AN.Incorrect_Number_of_Args (id, pos) ->
+    raise (AN.Semantic_error
+    (id ^ " is called with an incorrect number of arguments", pos))
