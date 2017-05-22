@@ -1,0 +1,26 @@
+call proc_main
+halt
+proc_main:
+push_stack_frame 0
+int_const r0, 3
+real_const r0, 3.200000
+int_const r0, 2
+int_to_real r1, r1
+mul_real r0, r0, r1
+int_to_real r0, r0
+add_real r0, r0, r1
+call_builtin print_real
+string_const r0, "" ""
+call_builtin print_string
+int_const r0, 9
+int_const r0, 4
+int_const r0, 5
+add_int r0, r0, r1
+cmp_eq_int r0, r0, r1
+int_const r0, 1
+and r0, r0, r1
+call_builtin print_bool
+string_const r0, "" Hello!\n""
+call_builtin print_string
+pop_stack_frame 0
+return

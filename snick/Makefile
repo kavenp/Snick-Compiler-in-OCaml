@@ -7,7 +7,8 @@ MODULES = snick_ast \
 	snick_pprint \
 	symbol \
 	analyze \
-	codegen 
+	codegen \
+	snick_brill
 MLFILES = $(addsuffix .ml, $(MODULES))
 CMOFILES = $(addsuffix .cmo, $(MODULES))
 CMXFILES = $(addsuffix .cmx, $(MODULES))

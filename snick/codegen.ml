@@ -66,6 +66,8 @@ type instruction =
   | IntToReal of reg * reg
   (* Move *)
   | Move of reg * reg
+  (* Set Label Pseudo Instruction *)
+  | BlockLabel of label
   (* Branch *)
   | BranchOnTrue of reg * label
   | BranchOnFalse of reg * label
@@ -97,13 +99,13 @@ let gen_reg_decl_code frame_size t =
   | AST.Float -> [Store (StackSlot frame_size, Reg 0); RealConst(Reg 0, 0.0)]
   | AST.Bool -> [Store (StackSlot frame_size, Reg 0); IntConst(Reg 0, 0)]
 
-let get_decl_code stbl proc (frame_size, code) decl = 
+let gen_decl_code stbl proc (frame_size, code) decl = 
   match decl with
   | AST.RegDecl (id, rtype, pos) ->
       let new_slot = ST.set_id_slot stbl proc id frame_size pos in
       let code = gen_reg_decl_code frame_size rtype in
       (new_slot, code)
-  | AST.ArrayDecl _ -> (frame_size, []) (* Array code here *)
+  | AST.ArrayDecl _ -> (frame_size, []) (* TODO: Array code here *)
 
 (*---- Type Resolution ----*)
 let get_pass_type scope =
@@ -145,6 +147,8 @@ and resolve_arithmetic_type lt rt pos =
   match (lt, rt) with
   | (ST.Tsym AST.Float, ST.Tsym AST.Float) -> ST.Tsym AST.Float
   | (ST.Tsym AST.Int, ST.Tsym AST.Int) -> ST.Tsym AST.Int
+  | (ST.Tsym AST.Float, ST.Tsym AST.Int) -> ST.Tsym AST.Float
+  | (ST.Tsym AST.Int, ST.Tsym AST.Float) -> ST.Tsym AST.Float
   | _ -> raise (AN.Type_Error("Arithmetic type doesn't match", pos))
 
 (*---- IO Read ----*)
@@ -217,8 +221,8 @@ let rec gen_unop_expr stbl proc_id load_reg unop expr =
 and
 gen_binop_expr stbl proc_id load_reg binop lexpr rexpr =
   let (Reg r) = load_reg in
-  let lexpr_code = gen_expr stbl proc_id load_reg lexpr in
-  let rexpr_code = gen_expr stbl proc_id load_reg rexpr in
+  let lexpr_code = gen_expr stbl proc_id (Reg r) lexpr in
+  let rexpr_code = gen_expr stbl proc_id (Reg (r+1)) rexpr in
   let ST.Tsym lexpr_t = expr_type stbl proc_id lexpr in
   let ST.Tsym rexpr_t = expr_type stbl proc_id rexpr in
   let con_l = IntToReal (Reg r, Reg r) in
@@ -332,7 +336,7 @@ gen_expr stbl proc_id load_reg expr =
   in
   asgn_code @ expr_code*)
 
-let gen_lval_assign reg (lscope, lslot) (rscope, rslot) =
+let gen_lval_assign reg (lscope, lslot) (rscope, rslot) conv=
   let lslot_num =
     match !lslot with
     | Some slotnum -> slotnum
@@ -345,19 +349,36 @@ let gen_lval_assign reg (lscope, lslot) (rscope, rslot) =
   in
   let (Reg r) = reg in
   let next_reg = Reg (r+1) in
-  match (lscope, rscope) with
-  | (Val, Val) -> [Store (StackSlot lslot_num, reg);
+  match (lscope, rscope, conv) with
+  | (Val, Val, false) -> [Store (StackSlot lslot_num, reg);
                    Load (reg, StackSlot rslot_num)]
-  | (Val, Ref) -> [Store (StackSlot lslot_num, reg);
+  | (Val, Ref, false) -> [Store (StackSlot lslot_num, reg);
                    LoadIndirect (reg, reg);
                    Load (reg, StackSlot rslot_num)]
-  | (Ref, Val) -> [StoreIndirect (next_reg, reg);
+  | (Ref, Val, false) -> [StoreIndirect (next_reg, reg);
                    Load (next_reg, StackSlot lslot_num);
-                   (Load (reg, StackSlot rslot_num))]
-  | (Ref, Ref) -> [StoreIndirect (next_reg, reg);
+                   Load (reg, StackSlot rslot_num)]
+  | (Ref, Ref, false) -> [StoreIndirect (next_reg, reg);
                    Load (next_reg, StackSlot lslot_num);
                    LoadIndirect (reg, reg);
                    Load (reg, StackSlot rslot_num)]
+  | (Val, Val, true) -> [Store (StackSlot lslot_num, reg);
+                         IntToReal (reg, reg);
+                         Load (reg, StackSlot rslot_num)]
+  | (Val, Ref, true) -> [Store (StackSlot lslot_num, reg);
+                         LoadIndirect (reg, reg);
+                         IntToReal (reg, reg);
+                         Load (reg, StackSlot rslot_num)]
+  | (Ref, Val, true) -> [StoreIndirect (next_reg, reg);
+                         Load (next_reg, StackSlot lslot_num);
+                         IntToReal (reg, reg);
+                         Load (reg, StackSlot rslot_num)]
+  | (Ref, Ref, true) -> [StoreIndirect (next_reg, reg);
+                         Load (next_reg, StackSlot lslot_num);
+                         LoadIndirect (reg, reg);
+                         IntToReal (reg, reg);
+                         Load (reg, StackSlot rslot_num)]
+
 
 let gen_lval_assign_code stbl proc_id lval rval =
   let lpos = AST.get_lval_pos lval in
@@ -367,18 +388,19 @@ let gen_lval_assign_code stbl proc_id lval rval =
   let (l_tsym, lslot) = ST.get_lval_sym stbl proc_id lval lpos in
   let (r_tsym, rslot) = ST.get_lval_sym stbl proc_id rval rpos in
   match (l_tsym, r_tsym) with
+  | (ST.Tsym AST.Float, ST.Tsym AST.Int) ->
+      gen_lval_assign (Reg 0) (lscope, lslot) (rscope, rslot) true
   | (ST.Tsym _, ST.Tsym _) ->
-      gen_lval_assign (Reg 0) (lscope, lslot) (rscope, rslot)
+      gen_lval_assign (Reg 0) (lscope, lslot) (rscope, rslot) false
 
 let gen_assign_code stbl proc_id lval rval =
   let lid_assign id =
     let pos = AST.get_lval_pos lval in
     let slot_num = ST.get_id_slot stbl proc_id id pos in
     let scope = ST.get_var_scope stbl proc_id id pos in
-    match scope with
-    | ST.SDecl
-    | ST.SValParam -> [Store (StackSlot slot_num, Reg 0)]
-    | ST.SRefParam -> [StoreIndirect (Reg 1, Reg 0);
+    match (get_pass_type scope) with
+    | Val -> [Store (StackSlot slot_num, Reg 0)]
+    | Ref -> [StoreIndirect (Reg 1, Reg 0);
                        Load (Reg 1, StackSlot slot_num)]
   in
   match rval with
@@ -402,7 +424,7 @@ let gen_builtin_write t =
   | AST.Float -> [CallBuiltin PrintReal]
   | AST.Bool -> [CallBuiltin PrintBool]
 
-let get_write stbl proc_id wrt =
+let gen_write stbl proc_id wrt =
   let print_reg = Reg 0 in
   match wrt with
   | AST.WString (str, _) ->
@@ -413,5 +435,194 @@ let get_write stbl proc_id wrt =
       let print_code = gen_builtin_write etype in
       print_code @ expr_code
 
+(*---- Proc Calls ----*)
+let gen_arg_pass_code callee_scope caller_scope argnum (tsym, slot) =
+  let gen_val_val_pass narg nslot = [Load (Reg narg, StackSlot nslot)] in
+  let gen_ref_ref_pass narg nslot = gen_val_val_pass narg nslot in
+  let gen_ref_val_pass narg nslot = [LoadIndirect (Reg narg, Reg narg);
+                                     Load (Reg narg, StackSlot nslot)]
+  in
+  let gen_val_ref_pass narg nslot = [LoadAddress (Reg narg, StackSlot nslot)] in
+  let gen_pass_code narg nslot =
+    match (get_pass_type caller_scope, get_pass_type callee_scope) with
+    | (Val,Val) -> gen_val_val_pass narg nslot
+    | (Val, Ref) -> gen_val_ref_pass narg nslot
+    | (Ref, Val) -> gen_ref_val_pass narg nslot
+    | (Ref, Ref) -> gen_ref_ref_pass narg nslot
+  in
+  match tsym with
+  | ST.Tsym _ ->
+      let slot_num = 
+        match !slot with
+        | Some num -> num
+        | None -> raise (Unimplemented "No slot allocated")
+      in
+      (argnum+1, gen_pass_code argnum slot_num)
+
+let gen_proc_call_code stbl caller callee exprs pos =
+  let gen_lval_pass_code arg_id lval (argnum, code) =
+    match lval with
+    | AST.LId (id, pos) ->
+      let callee_scope = ST.get_var_scope stbl callee arg_id pos in
+      let (tsym, caller_scope, slot, pos) =
+        ST.get_var_sym stbl caller id pos
+      in
+      let (newarg, load_code) =
+        gen_arg_pass_code callee_scope caller_scope argnum (tsym, slot)
+      in
+      (newarg, load_code @ code)
+    | AST.LArray _ -> (argnum, code) (*TODO: Array pass*)
+  in
+  let proclabel = ST.get_proc_label stbl callee pos in
+  let args = ST.get_args stbl callee pos in
+  let load_arg (argnum, code) (expr, arg_id) =
+    match expr with
+    | AST.Elval (lval, _) -> gen_lval_pass_code arg_id lval (argnum, code)
+    | _ -> 
+        let arg_code = gen_expr stbl caller (Reg argnum) expr in
+        (argnum+1, arg_code @ code)
+  in
+  let params = List.combine exprs args in
+  let (argnum, arg_code) = List.fold_left load_arg (0, []) params in
+  let call_code = [Call (Label proclabel)] in
+  call_code @ arg_code
+
+let gen_reg_arg_code argnum slotnum slot =
+  slot := Some slotnum;
+  (argnum+1, slotnum+1, [Store (StackSlot slotnum, Reg argnum)])
+
+let gen_arg_code stbl proc_id (argnum, framesize, code) arg =
+  let (_, _, id, pos) = arg in
+  (* TODO: Semantic Check argument name *)
+  let (atype, ascope, slot, _) = ST.get_var_sym stbl proc_id id pos in
+  let (n, nframesize, arg_code) =
+    match atype with
+    | ST.Tsym _ ->
+        gen_reg_arg_code argnum framesize slot
+  in
+  (n, nframesize, arg_code @ code)
+
+(* Instruction Control Flow *)
+let make_if_labels n = 
+  let after_label = Label ("if_after" ^ string_of_int n) in
+  (n+1, after_label)
+
+let make_ifelse_labels n =
+  let else_label = Label ("if_else" ^ string_of_int n) in
+  let after_label = Label ("if_else_after" ^ string_of_int n) in
+  (n+1, after_label, else_label)
+
+let make_while_labels n =
+  let cond_label = Label ("while_cond" ^ string_of_int n) in
+  let after_label = Label ("while_after" ^ string_of_int n) in
+  (n+1, after_label, cond_label)
+
+let make_proc_label stbl proc () =
+  let (proc_id, _, _, pos) = proc in
+  let labelname = "proc_" ^ proc_id in
+  ST.set_proc_label stbl proc_id labelname pos
+
+let rec gen_if_code stbl proc_id n expr stmts =
+  let (newlabel, afterlabel) = make_if_labels n in
+  let cond_reg = Reg 0 in
+  let expr_code = gen_expr stbl proc_id cond_reg expr in
+  let branch_code = [BranchOnFalse (cond_reg, afterlabel)] in
+  let fold_stmt stmt acc = gen_stmt_code stbl proc_id acc stmt in
+  let (finallabel, stmts_code) =
+    List.fold_right fold_stmt stmts (newlabel, [])
+  in
+  let after_code = [BlockLabel afterlabel] in
+  (finallabel, after_code @ stmts_code @ branch_code @ expr_code)
+and
+gen_ifelse_code stbl proc_id n expr if_stmts else_stmts =
+  let (newlabel, afterlabel, elselabel) = make_ifelse_labels n in
+  let cond_reg = Reg 0 in
+  let expr_code = gen_expr stbl proc_id cond_reg expr in
+  let branch_code = [BranchOnFalse (cond_reg, elselabel)] in
+  let fold_stmt stmt acc = gen_stmt_code stbl proc_id acc stmt in
+  let (label1, if_stmts_code) =
+    List.fold_right fold_stmt if_stmts (newlabel, [])
+  in
+  let before_else_code =
+    [BlockLabel elselabel; BranchUncond afterlabel]
+  in
+  let (label2, else_code) =
+    List.fold_right fold_stmt else_stmts (label1, [])
+  in
+  let after_code = [BlockLabel afterlabel] in
+  let code =
+    (after_code @ else_code @ before_else_code @ if_stmts_code @ branch_code
+    @ expr_code)
+  in
+  (label2, code)
+and
+gen_while_code stbl proc_id n expr stmts =
+  let (newlabel, afterlabel, condlabel) = make_while_labels n in
+  let cond_reg = Reg 0 in
+  let cond_code = [BlockLabel condlabel] in
+  let expr_code = gen_expr stbl proc_id cond_reg expr in
+  let branch_code = [BranchOnFalse (cond_reg, afterlabel)] in
+  let fold_stmt stmt acc = gen_stmt_code stbl proc_id acc stmt in
+  let (finallabel, stmt_code) =
+    List.fold_right fold_stmt stmts (newlabel, [])
+  in
+  let while_end_code = [BranchUncond condlabel] in
+  let after_code = [BlockLabel afterlabel] in
+  let code =
+    (after_code @ while_end_code @ stmt_code @ branch_code @ expr_code
+     @ cond_code)
+  in
+  (finallabel, code)
+and
+gen_stmt_code stbl proc_id (n, code) stmt =
+  (* TODO: Semantic stmt check here *)
+  let (newlabel, stmt_code) =
+    match stmt with
+    | AST.Assign (lval, rval, _) -> (n, gen_assign_code stbl proc_id lval rval)
+    | AST.Read lval -> (n, gen_read stbl proc_id lval)
+    | AST.Write wrt -> (n, gen_write stbl proc_id wrt)
+    | AST.Ifthen (expr, stmts) -> gen_if_code stbl proc_id n expr stmts
+    | AST.IfthenElse (expr, if_stmts, else_stmts) ->
+        gen_ifelse_code stbl proc_id n expr if_stmts else_stmts
+    | AST.WhileDo (expr, stmts) -> gen_while_code stbl proc_id n expr stmts
+    | AST.ProcCall (callee, exprs, pos) ->
+        (n, gen_proc_call_code stbl proc_id callee exprs pos)
+  in
+  (newlabel, stmt_code @ code)
+
+(*---- Procedure Code ----*)
+
+let gen_proc_code stbl (n, code) proc =
+  (* TODO: Can semantic check proc here *)
+  let (proc_id, args, (decls, stmts), pos) = proc in
+  let framesize = 0 in
+  make_proc_label stbl proc ();
+  let labelname = ST.get_proc_label stbl proc_id pos in
+  let arg_gen = gen_arg_code stbl proc_id in
+  let decl_gen = gen_decl_code stbl proc_id in
+  let stmt_gen = gen_stmt_code stbl proc_id in
+  let (argnum, framesize1, arg_code) =
+    List.fold_left arg_gen (0, framesize, []) args
+  in
+  let (framesize2, decl_code) =
+    List.fold_left decl_gen (framesize1, arg_code) decls
+  in
+  let (labels, body_code) =
+    List.fold_left stmt_gen (n, decl_code) stmts
+  in
+  let label = Label labelname in
+  let prologue = [PushStackFrame framesize2; BlockLabel label] in
+  let epilogue = [Return; PopStackFrame framesize2] in
+  let proc_code = epilogue @ body_code @ prologue in
+  (labels, proc_code @ code)
+
+(*---- Main ----*)
+let gen_code stbl prog =
+  (* Semantic check main *)
+  let procs = prog.AST.procs in
+  let prelude = [Call (Label "proc_main"); Halt] in
+  List.fold_right (make_proc_label stbl) procs ();
+  let (_, prog) = List.fold_left (gen_proc_code stbl) (0, []) procs in
+  prelude @ List.rev prog
 
 

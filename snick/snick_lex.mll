@@ -24,7 +24,6 @@ let alpha = ['a' - 'z' 'A' - 'Z']
 let alnum = alpha | '_' | '\'' | digit
 let digits = digit+
 let ident = (alpha | '_') alnum*
-let str = '"' [^ '\n' '\t' '"']* '"'
 rule token = parse
   (* Skip blanks *)
   | [' ' '\t']    { token lexbuf }
@@ -35,7 +34,7 @@ rule token = parse
   | '-'? ('0' | ['1'-'9']+['0'-'9']*) as lxm { INT_CONST(int_of_string lxm) }
   (* Skip comments *)
   | '#'[^ '\n']* { token lexbuf } 
-  | str as lxm { STR_CONST lxm }
+  | '"' { read_string (Buffer.create 30) lexbuf }
   (* Keywords *)
   | "and" { AND }
   | "do" { DO }
@@ -83,3 +82,11 @@ rule token = parse
   | eof { EOF }
   | _ { raise (Lex_error
               ("Unknown symbol \"" ^ (Lexing.lexeme lexbuf) ^ "\"")) }
+and read_string buf =
+  parse
+  | '"' { STR_CONST (Buffer.contents buf)}
+  | [^ '"' '\n' '\t'] { Buffer.add_string buf (Lexing.lexeme lexbuf);
+                        read_string buf lexbuf }
+  | _ { raise (Lex_error 
+        ("Illegal string character: \""^(Lexing.lexeme lexbuf)^"\"")) }
+  | eof { raise (Lex_error "End of file reached before string ended")}
